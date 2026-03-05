@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+	
+	
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPC - Dual Tournament Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #92d027; --dark-bg: #0f172a; --panel-bg: #1e293b; --text: #f8fafc; --accent: #8b5cf6; --danger: #ef4444; --grey: #94a3b8; --warning: #f59e0b; --gold: #ffd700; --silver: #e2e8f0; --bronze: #cd7f32; }
+        body { background: var(--dark-bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; padding: 20px; transition: 0.3s; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        .tourney-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 15px; border-radius: 12px; border: 2px solid #334155; background: var(--panel-bg); color: var(--grey); cursor: pointer; font-weight: 800; text-transform: uppercase; font-size: 1rem; }
+        .tab-btn.active { border-color: var(--primary); color: var(--primary); background: rgba(146, 208, 39, 0.1); }
+		.btn.active { background: var(--primary) !important; color: var(--dark-bg) !important; font-weight: 700; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px; }
+        .panel { background: var(--panel-bg); padding: 20px; border-radius: 16px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.05); }
+        h3 { color: var(--primary); margin-top: 0; text-transform: uppercase; font-size: 1.1rem; letter-spacing: 1px; }
+        
+        .main-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
+        .side-col { display: flex; flex-direction: column; gap: 20px; }
+        
+        input, select { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: white; margin-bottom: 10px; box-sizing: border-box; }
+        .btn { padding: 12px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; width: 100%; text-transform: uppercase; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: #000; }
+        .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+        
+        .toggle-container { display: flex; background: #0f172a; border-radius: 8px; padding: 4px; margin-bottom: 15px; border: 1px solid #334155; }
+        .toggle-btn { flex: 1; padding: 8px; font-size: 0.7rem; border: none; background: transparent; color: var(--grey); cursor: pointer; border-radius: 6px; font-weight: bold; }
+        .toggle-btn.active { background: var(--accent); color: white; }
+
+        .team-card { background: #0f172a; padding: 18px; border-radius: 12px; border-left: 6px solid var(--accent); margin-bottom: 10px; }
+        .rank-num { font-size: 1.5rem; font-weight: 800; color: var(--grey); margin-right: 15px; }
+        .team-title { font-size: 1.2rem; font-weight: 700; color: white; }
+        .team-stats { font-size: 1.1rem; font-weight: 800; color: var(--primary); }
+
+        .bench-panel { border: 1px dashed var(--danger); background: rgba(239, 68, 68, 0.03); }
+        .bench-player { background: #0f172a; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid #334155; color: var(--danger); margin: 2px; display: inline-block; }
+
+        .match-card { background: #1e293b; padding: 15px; border-radius: 12px; border: 1px solid var(--primary); margin-bottom: 15px; display: flex; gap: 15px; }
+        .match-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; flex: 1; }
+        .pts-input { width: 50px; padding: 4px 2px; text-align: center; font-weight: bold; background: #0f172a; border: 1px solid #334155; color: white; border-radius: 4px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-bottom: 5px; }
+
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+    </style>
+</head>
+<body>
+
+<audio id="announcementChime" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" preload="auto"></audio>
+
+<div class="container">
+    <div class="tourney-tabs">
+        <button id="tab-novice" class="tab-btn active" onclick="switchTourney('novice')">Novice Bracket</button>
+        <button id="tab-intermediate" class="tab-btn" onclick="switchTourney('intermediate')">Intermediate Bracket</button>
+    </div>
+
+    <div class="header">
+        <h1 id="tourney-title">🏆 NOVICE TOURNAMENT</h1>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" style="width: auto;" onclick="openSpectatorView()">Spectator View</button>
+            <button class="btn btn-primary" style="width: auto;" onclick="resetTourney()">Reset</button>
+            <button class="btn btn-outline" style="width: auto; border-color: var(--danger); color: var(--danger);" onclick="window.location.href='TPC.html'">Exit to TPC</button>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <div class="side-col">
+            <div class="panel">
+                <h3>Player List</h3>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="pName" placeholder="NAME..." onkeypress="if(event.key==='Enter') addPlayer()">
+                    <select id="pGender" style="width: 80px;"><option value="M">M</option><option value="F">F</option></select>
+                </div>
+                <button class="btn btn-primary" onclick="addPlayer()">Add Player</button>
+                <div id="playerPool" style="max-height: 150px; overflow-y: auto; font-size: 0.8rem; margin-top:10px;"></div>
+            </div>
+
+            <div class="panel">
+                <h3>Current Standings</h3>
+                <div style="display:flex; gap:10px; margin-bottom:15px;">
+					<button id="btnRankWins" class="btn active" onclick="switchRank('wins')">Rank by Wins</button>
+					<button id="btnRankPts" class="btn" onclick="switchRank('pts')">Rank by Points</button>
+				</div>
+                <button class="btn btn-outline" style="font-size:0.7rem; margin-bottom:15px;" onclick="generateTeams()">Generate Schedule</button>
+                <div id="teamList"></div>
+            </div>
+            <div id="benchPanel" class="panel bench-panel" style="display:none;">
+                <h3>⚠️ Sitting Out</h3><div id="benchList"></div>
+            </div>
+        </div>
+
+        <div class="main-col">
+            <div id="podiumSection" class="panel" style="display:none; border-color: var(--gold); text-align:center;">
+                <h3>🥇 LIVE PODIUM</h3>
+                <div style="display:flex; justify-content:center; align-items:flex-end; gap:15px; padding:20px;">
+                    <div style="text-align:center;"><div id="name-2" style="font-size:0.8rem; font-weight:bold;">TBD</div><div style="background:var(--silver); height:50px; width:90px; color:#000; font-weight:800; border-radius:8px 8px 0 0; display:flex; align-items:center; justify-content:center;">2nd</div></div>
+                    <div style="text-align:center;"><div id="name-1" style="font-size:1rem; font-weight:bold; color:var(--gold);">TBD</div><div style="background:var(--gold); height:80px; width:110px; color:#000; font-weight:800; border-radius:8px 8px 0 0; display:flex; align-items:center; justify-content:center;">1st</div></div>
+                    <div style="text-align:center;"><div id="name-3" style="font-size:0.8rem; font-weight:bold;">TBD</div><div style="background:var(--bronze); height:30px; width:90px; color:#000; font-weight:800; border-radius:8px 8px 0 0; display:flex; align-items:center; justify-content:center;">3rd</div></div>
+                </div>
+                <div id="finalsSchedule" style="margin-top: 20px; text-align: left;"></div>
+            </div>
+            <div class="panel"><h3>Match Schedule</h3><div id="schedule"></div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+	
+   
+    let currentMode = 'novice';
+	let db = null;
+	const defaultState = () => ({ pool: [], teams: [], matchResults: {}, courts: {}, benched: [], rankBy: 'wins' });
+	
+	
+
+	let tournaments = JSON.parse(localStorage.getItem('tpc_dual_state')) || {
+		novice: defaultState(),
+		intermediate: defaultState()
+	};
+	
+
+	function initFirebase() {
+		
+		const firebaseConfig = {
+			apiKey: "AIzaSyBiVPx18NXyoyS40rJeImxHBbEaSuwdTbk",
+			authDomain: "pickleball-da143.firebaseapp.com",
+			databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app",
+			projectId: "pickleball-da143",
+			storageBucket: "pickleball-da143.firebasestorage.app",
+			messagingSenderId: "629340323922",
+			appId: "1:629340323922:web:778cf31541815864f09f8b",
+			measurementId: "G-PE2KGZ08WG"
+		};
+
+		if (!firebase.apps.length) {
+			firebase.initializeApp(firebaseConfig);
+		}
+		db = firebase.database().ref('tpc_dual_state');
+
+		
+		db.once('value').then((snapshot) => {
+			const cloudData = snapshot.val();
+			if (cloudData) {
+				tournaments = cloudData;
+				renderAll();
+			}
+		});
+	}
+	
+	
+	
+
+	function save() {
+		localStorage.setItem('tpc_dual_state', JSON.stringify(tournaments));
+		if (db) {
+			
+			db.set(tournaments).then(() => {
+				console.log("Cloud Saved Successfully");
+			}).catch(e => {
+				console.error("Cloud Save Failed. Check Rules.", e);
+			});
+		}
+	}
+
+    
+    initFirebase();
+
+    function switchTourney(mode) {
+        currentMode = mode;
+        document.getElementById('tab-novice').classList.toggle('active', mode === 'novice');
+        document.getElementById('tab-intermediate').classList.toggle('active', mode === 'intermediate');
+        document.getElementById('tourney-title').innerText = `🏆 ${mode.toUpperCase()} TOURNAMENT`;
+        renderAll();
+    }
+
+    function getActive() { return tournaments[currentMode]; }
+
+    function addPlayer() {
+		const nameInput = document.getElementById('pName');
+		const genderInput = document.getElementById('pGender');
+		const name = nameInput.value.trim().toUpperCase();
+		const gender = genderInput.value;
+
+		if (!name) return;
+
+		
+		const state = getActive();
+
+		
+		if (!state) {
+			console.error("Tournament state not found!");
+			return;
+		}
+		
+		if (!state.pool) {
+			state.pool = [];
+		}
+
+		
+		state.pool.push({ id: Date.now(), name, gender });
+		
+		
+		nameInput.value = '';
+		save(); 
+		renderAll();
+	}
+
+    function removePlayer(id) {
+        getActive().pool = getActive().pool.filter(p => p.id !== id);
+        save(); renderAll();
+    }
+
+    function setRankingLogic(type) {
+        getActive().rankBy = type;
+        save(); renderAll();
+    }
+
+    function generateTeams() {
+        const state = getActive();
+        const men = state.pool.filter(p => p.gender === 'M');
+        const women = state.pool.filter(p => p.gender === 'F');
+        const finalTeamCount = Math.min(Math.floor(men.length / 2), women.length);
+        if (finalTeamCount < 2) return alert("Need more players!");
+        
+        let shufMen = [...men].sort(() => Math.random() - 0.5);
+        let shufWomen = [...women].sort(() => Math.random() - 0.5);
+        state.teams = []; state.matchResults = {};
+        for (let i = 0; i < finalTeamCount; i++) {
+            state.teams.push({ id: i + 1, men: [shufMen.pop(), shufMen.pop()], woman: shufWomen.pop(), w: 0, pts: 0 });
+        }
+        state.benched = [...shufMen, ...shufWomen];
+        save(); renderAll();
+    }
+
+    function calculateStandings(state) {
+		
+		if (!state || !state.teams) return;
+
+		
+		state.teams.forEach(t => { t.w = 0; t.pts = 0; });
+		
+	
+		if (!state.matchResults) {
+			state.matchResults = {};
+			return;
+		}
+
+		Object.entries(state.matchResults).forEach(([mKey, match]) => {
+			if (mKey.startsWith('final')) return;
+			if (match && typeof match === 'object') {
+				Object.keys(match).forEach(tid => {
+					const team = state.teams.find(t => t.id == tid);
+					if (team) {
+						if (match[tid].status === 'W') team.w++;
+						team.pts += (match[tid].pts || 0);
+					}
+				});
+			}
+		});
+	}
+
+    function renderAll() {
+		const state = getActive();
+		if (!state) return;
+
+		// 1. Rank Buttons
+		const btnWins = document.getElementById('btnRankWins');
+		const btnPts = document.getElementById('btnRankPts');
+		if (btnWins && btnPts) {
+			if (state.rankBy === 'wins') {
+				btnWins.classList.add('active');
+				btnPts.classList.remove('active');
+			} else {
+				btnWins.classList.remove('active');
+				btnPts.classList.add('active');
+			}
+		}
+
+		// 2. Player Pool
+		const poolEl = document.getElementById('playerPool');
+		if (poolEl) {
+			poolEl.innerHTML = (state.pool || []).map(p => `
+				<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #334155;">
+					<span>${p.gender === 'M' ? '🚹' : '🚺'} ${p.name}</span>
+					<button onclick="removePlayer(${p.id})" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button>
+				</div>
+			`).join('');
+		}
+
+		// 3. FIXED: Sitting Out Logic
+		const benchPanel = document.getElementById('benchPanel');
+		const benchList = document.getElementById('benchList');
+		
+		if (benchPanel && benchList) {
+			const playersInTeams = new Set();
+			(state.teams || []).forEach(t => {
+				if(t.woman) playersInTeams.add(t.woman.id);
+				if(t.men) t.men.forEach(m => playersInTeams.add(m.id));
+			});
+
+			const benched = (state.pool || []).filter(p => !playersInTeams.has(p.id));
+			
+			if (benched.length > 0 && state.teams && state.teams.length > 0) {
+				// Show the panel if there are benched players
+				benchPanel.style.display = 'block';
+				benchList.innerHTML = benched.map(p => `
+					<div style="padding:8px; background:rgba(239, 68, 68, 0.1); border-left:3px solid var(--danger); margin-bottom:5px; border-radius:4px; font-size:0.8rem;">
+						${p.gender === 'M' ? '🚹' : '🚺'} ${p.name}
+					</div>
+				`).join('');
+			} else {
+				// Hide the panel if everyone is playing or no teams exist yet
+				benchPanel.style.display = 'none';
+			}
+		}
+
+		// 4. Standings & Team List
+		calculateStandings(state);
+		const sortedTeams = [...(state.teams || [])].sort((a, b) => 
+			state.rankBy === 'wins' ? (b.w - a.w || b.pts - a.pts) : (b.pts - a.pts || b.w - a.w)
+		);
+
+		const teamListEl = document.getElementById('teamList');
+		if (teamListEl) {
+			teamListEl.innerHTML = sortedTeams.map((t, i) => `
+				<div class="team-card" style="border-color: ${i < 4 ? 'var(--primary)' : 'var(--accent)'}">
+					<div style="display:flex; justify-content:space-between; align-items:center;">
+						<div style="display:flex; align-items:center;">
+							<span class="rank-num">${i + 1}</span>
+							<div>
+								<div class="team-title">Team ${t.id}</div>
+								<div style="font-size:0.7rem; color:var(--grey)">${t.woman.name} / ${t.men[0].name} / ${t.men[1].name}</div>
+							</div>
+						</div>
+						<div class="team-stats">${state.rankBy === 'wins' ? t.w + 'W' : t.pts + 'P'}</div>
+					</div>
+				</div>
+			`).join('');
+		}
+
+		// 5. Match Schedule
+		const scheduleEl = document.getElementById('schedule');
+		if (scheduleEl && state.teams && state.teams.length > 0) {
+			const rounds = getRounds(state.teams);
+			scheduleEl.innerHTML = rounds.map((round, rIdx) => `
+				<div style="margin-bottom:25px;">
+					<h4 style="color:var(--accent); margin-bottom:10px; border-bottom:1px solid #334155;">ROUND ${rIdx + 1}</h4>
+					<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:10px;">
+						${round.map(m => renderMatchCard(m[0], m[1], `r${rIdx}_t${m[0].id}_t${m[1].id}`)).join('')}
+					</div>
+				</div>
+			`).join('');
+		}
+
+		// 6. Podium
+		const podiumSection = document.getElementById('podiumSection');
+		if (sortedTeams.length >= 2) {
+			podiumSection.style.display = 'block';
+			renderFinals(sortedTeams[0], sortedTeams[1], sortedTeams[2], sortedTeams[3]);
+			updatePodium(sortedTeams);
+		}
+	}
+
+    function updatePodium(sorted) {
+        const state = getActive();
+        const getWin = (tA, tB, prefix) => {
+            if(!tA || !tB) return null;
+            let wA = 0, wB = 0;
+            ['x1', 'm', 'x2'].forEach(s => {
+                const r = state.matchResults[`${prefix}_${s}`];
+                if (r?.[tA.id]?.status === 'W') wA++;
+                if (r?.[tB.id]?.status === 'W') wB++;
+            });
+            return wA > wB ? tA : (wB > wA ? tB : null);
+        };
+        const champ = getWin(sorted[0], sorted[1], 'final_gold');
+        const third = sorted.length >= 4 ? getWin(sorted[2], sorted[3], 'final_bronze') : null;
+        document.getElementById('name-1').innerText = champ ? `TEAM ${champ.id}` : "TBD";
+        document.getElementById('name-2').innerText = champ ? `TEAM ${champ.id == sorted[0].id ? sorted[1].id : sorted[0].id}` : "TBD";
+        document.getElementById('name-3').innerText = third ? `TEAM ${third.id}` : "TBD";
+    }
+
+    function renderFinals(t1, t2, t3, t4) {
+        let html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">`;
+        html += `<div><div class="badge" style="background:var(--gold); color:#000; font-size:0.6rem;">GOLD MEDAL MATCH</div>` + renderMatchCard(t1, t2, 'final_gold') + `</div>`;
+        if (t3 && t4) html += `<div><div class="badge" style="background:var(--bronze); color:#000; font-size:0.6rem;">BRONZE MEDAL MATCH</div>` + renderMatchCard(t3, t4, 'final_bronze') + `</div>`;
+        html += `</div>`;
+        document.getElementById('finalsSchedule').innerHTML = html;
+    }
+
+    function renderMatchCard(T1, T2, pairKey) {
+		const state = getActive();
+		
+		
+		if (!state.courts) state.courts = {};
+		if (!state.matchResults) state.matchResults = {};
+
+		const renderSub = (label, key) => {
+			
+			const matchData = state.matchResults[key] || {};
+			const r1 = matchData[T1.id] || { status: '', pts: '' };
+			const r2 = matchData[T2.id] || { status: '', pts: '' };
+			
+			return `<div style="font-size:0.6rem; background:rgba(0,0,0,0.2); padding:4px; border-radius:4px;">
+				<div style="color:var(--primary); font-weight:bold;">${label}</div>
+				<div style="display:flex; gap:2px; margin-top:2px;">
+					<button style="flex:1; background:${r1.status==='W'?'var(--primary)':'#334155'}; font-size:0.5rem;" onclick="updateScore(${T1.id}, ${T2.id}, '${key}')">T${T1.id}</button>
+					<input type="number" class="pts-input" style="width:25px; height:18px;" value="${r1.pts}" onchange="updatePoints(${T1.id}, '${key}', this.value)">
+				</div>
+				<div style="display:flex; gap:2px; margin-top:2px;">
+					<button style="flex:1; background:${r2.status==='W'?'var(--primary)':'#334155'}; font-size:0.5rem;" onclick="updateScore(${T2.id}, ${T1.id}, '${key}')">T${T2.id}</button>
+					<input type="number" class="pts-input" style="width:25px; height:18px;" value="${r2.pts}" onchange="updatePoints(${T2.id}, '${key}', this.value)">
+				</div>
+			</div>`;
+		};
+
+		
+		const courtNumber = state.courts[pairKey] || '';
+
+		return `<div class="match-card">
+			<div class="match-grid">${renderSub('MX1', pairKey+'_x1')}${renderSub('MEN', pairKey+'_m')}${renderSub('MX2', pairKey+'_x2')}</div>
+			<div style="display:flex; flex-direction:column; gap:5px; width:45px;">
+				<input type="text" class="pts-input" style="width:100%;" value="${courtNumber}" placeholder="CT #" onchange="getActive().courts['${pairKey}']=this.value; save()">
+				<button class="btn btn-primary" style="font-size:0.6rem; padding:4px;" onclick="announceMatch(${T1.id}, ${T2.id}, '${pairKey}', '${currentMode}')">📢</button>
+			</div>
+		</div>`;
+	}
+
+    function updateScore(tW, tL, key) {
+        const state = getActive();
+        if (!state.matchResults[key]) state.matchResults[key] = {};
+        state.matchResults[key][tW] = { ...state.matchResults[key][tW], status: 'W' };
+        state.matchResults[key][tL] = { ...state.matchResults[key][tL], status: 'L' };
+        save(); renderAll();
+    }
+
+    function updatePoints(tid, key, pts) {
+		const state = getActive();
+		
+	
+		if (!state.matchResults) state.matchResults = {};
+		
+		
+		if (!state.matchResults[key]) state.matchResults[key] = {};
+		
+		
+		if (!state.matchResults[key][tid]) {
+			state.matchResults[key][tid] = { status: '', pts: 0 };
+		}
+		
+		state.matchResults[key][tid].pts = parseInt(pts) || 0;
+		save(); 
+		renderAll();
+	}
+
+    function announceMatch(t1Id, t2Id, key, bracket) {
+		const ct = getActive().courts[key] || "?";
+		const sound = document.getElementById('announcementChime');
+		sound.volume = 0.3;
+		sound.play();
+
+		// Capitalize the bracket name for better speech flow
+		const bracketName = bracket.charAt(0).toUpperCase() + bracket.slice(1);
+
+		setTimeout(() => {
+			const speech = new SpeechSynthesisUtterance(
+				`Attention. ${bracketName} Tournament Match on Court ${ct}. Team ${t1Id} versus Team ${t2Id}.`
+			);
+			
+			const allVoices = window.speechSynthesis.getVoices();
+			// Try to find a clear, professional voice
+			const bestVoice = allVoices.find(v => v.name.includes('Zira') || v.name.includes('Samantha')) 
+							  || allVoices.find(v => v.lang.startsWith('en'));
+			
+			if (bestVoice) speech.voice = bestVoice;
+			speech.rate = 0.85; // Slightly slower for clarity in a loud gym
+			window.speechSynthesis.speak(speech);
+		}, 800);
+	}
+
+    function getRounds(teams) {
+        let matches = [];
+        for (let i = 0; i < teams.length; i++) for (let j = i + 1; j < teams.length; j++) matches.push([teams[i], teams[j]]);
+        let rounds = [];
+        while(matches.length > 0) {
+            let round = [], used = new Set();
+            for(let i=0; i<matches.length; i++) {
+                if(!used.has(matches[i][0].id) && !used.has(matches[i][1].id)) {
+                    used.add(matches[i][0].id); used.add(matches[i][1].id);
+                    round.push(matches.splice(i, 1)[0]); i--;
+                }
+            }
+            rounds.push(round);
+        }
+        return rounds;
+    }
+	
+	
+	
+
+    function resetTourney() { 
+		if(confirm("Are you sure? This will clear all teams, players, and scores for the current bracket.")) { 
+			
+			tournaments[currentMode] = { 
+				pool: [], 
+				teams: [], 
+				matchResults: {}, 
+				courts: {}, 
+				benched: [], 
+				rankBy: 'wins' 
+			}; 
+			
+			
+			save(); 
+			
+			
+			renderAll(); 
+		} 
+	}
+
+    function openSpectatorView() {
+		
+		window.open("spectator.html", "_blank");
+	}
+	
+	
+	function switchRank(type) {
+		const state = getActive();
+		if (!state) return;
+
+		
+		state.rankBy = type;
+		
+		
+		save(); 
+		
+		
+		renderAll();
+	}
+
+    renderAll();
+	initFirebase();
+	
+</script>
+</body>
+</html>

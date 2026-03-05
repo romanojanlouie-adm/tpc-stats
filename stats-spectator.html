@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<script src="./qrcode.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Stats - The Pickleball Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #92d027; 
+            --dark-bg: #0f172a; 
+            --panel-bg: #1e293b;
+            --text: #f8fafc; 
+            --accent: #3b82f6; 
+            --winner: #22c55e;
+            --grey: #94a3b8;
+        }
+
+        body { 
+            background-color: var(--dark-bg); 
+            color: var(--text); 
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0; padding: 40px;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        header { 
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid var(--primary); padding-bottom: 20px; margin-bottom: 40px;
+        }
+
+        h1 { margin: 0; font-size: 2.5rem; letter-spacing: -1px; }
+        .live-indicator { color: var(--primary); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .dot { width: 12px; height: 12px; background: var(--primary); border-radius: 50%; animation: pulse 1.5s infinite; }
+
+        @keyframes pulse { 
+            0% { opacity: 1; transform: scale(1); } 
+            50% { opacity: 0.4; transform: scale(1.2); } 
+            100% { opacity: 1; transform: scale(1); } 
+        }
+
+        .stats-grid { 
+            display: grid; grid-template-columns: 2fr 1fr; gap: 40px; 
+        }
+
+        .card { background: var(--panel-bg); border-radius: 24px; padding: 30px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
+        h2 { color: var(--primary); text-transform: uppercase; font-size: 1.2rem; margin-top: 0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; color: var(--grey); font-size: 0.8rem; text-transform: uppercase; padding: 12px; }
+        td { padding: 18px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 1.1rem; }
+
+        .rank { font-weight: 800; color: var(--primary); width: 40px; }
+        .player-name { font-weight: 700; }
+        .dupr-badge { background: var(--accent); color: white; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 0.9rem; }
+        
+        .history-item { 
+            padding: 15px; border-left: 4px solid var(--primary); 
+            background: rgba(255,255,255,0.03); margin-bottom: 15px; border-radius: 0 12px 12px 0;
+        }
+        .history-score { font-weight: 800; color: var(--primary); font-size: 1.2rem; display: block; }
+        .history-players { font-size: 0.9rem; color: var(--grey); }
+
+        @media (max-width: 900px) { .stats-grid { grid-template-columns: 1fr; } }
+		
+		
+		/* Stat Card Overlay */
+		.stat-card-overlay {
+			position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+			background: rgba(15, 23, 42, 0.95); display: none;
+			align-items: center; justify-content: center; z-index: 2000;
+		}
+		.player-card {
+			background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+			width: 400px; padding: 40px; border-radius: 30px;
+			border: 3px solid var(--primary); text-align: center;
+			box-shadow: 0 0 50px rgba(146, 208, 39, 0.3);
+		}
+		.card-name { font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; color: white; }
+		.card-dupr { font-size: 4rem; font-weight: 900; color: var(--primary); margin: 20px 0; }
+		.card-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+		.stat-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; }
+		.stat-val { display: block; font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+		.stat-lbl { font-size: 0.7rem; color: var(--grey); text-transform: uppercase; }
+		
+		@media (max-width: 600px) {
+			.player-card {
+				width: 85% !important; /* Prevents side-cropping on phones */
+				padding: 25px !important;
+				margin: 10px;
+			}
+			
+			.card-dupr {
+				font-size: 3rem !important; /* Slightly smaller for mobile height */
+			}
+
+			.card-name {
+				font-size: 1.8rem !important;
+			}
+		}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1>PLAYER LEADERBOARD</h1>
+            <div class="live-indicator"><div class="dot"></div> LIVE SYSTEM STATS</div>
+        </div>
+        <button onclick="window.location.href='TPC.html'" style="background: transparent; border: 1px solid var(--grey); color: var(--text); padding: 10px 20px; border-radius: 10px; cursor: pointer;">Back to Console</button>
+    </header>
+
+    <div class="stats-grid">
+        <div class="card">
+            <h2>Top Performers (by Est. DUPR)</h2>
+			
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>W/L/D</th>
+                        <th>Games played</th>
+                        <th>Est. DUPR</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card"><h2>All-Time Rankings</h2> <div id="allTimeLeaderboard"></div> </div>
+    </div>
+</div>
+
+
+<div id="statCardOverlay" class="stat-card-overlay" onclick="this.style.display='none'">
+    <div class="player-card">
+        <div class="card-lbl" style="color:var(--primary); font-weight:700;">TODAY'S PERFORMANCE</div>
+        <div id="cardName" class="card-name">PLAYER NAME</div>
+        <div id="cardDupr" class="card-dupr">3.50</div>
+        <div class="card-stats-row">
+            <div class="stat-box"><span id="cardWins" class="stat-val">0</span><span class="stat-lbl">Wins</span></div>
+            <div class="stat-box"><span id="cardLoss" class="stat-val">0</span><span class="stat-lbl">Losses</span></div>
+        </div>
+        <button class="btn" style="margin-top:30px; background:var(--primary); color:#000; width:100%; padding:15px; border-radius:12px; font-weight:700;">CLOSE</button>
+    </div>
+</div>
+
+	<script>
+		function calculateTodayStats() {
+			const history = JSON.parse(localStorage.getItem('upb_history')) || [];
+			const queue = JSON.parse(localStorage.getItem('upb_queue')) || [];
+			const courts = JSON.parse(localStorage.getItem('upb_courts')) || [];
+			const todayStats = {};
+
+			const activeNames = new Set([
+				...queue.map(p => p.name),
+				...courts.flatMap(c => c.players || []).map(p => p.name)
+			]);
+
+			activeNames.forEach(name => {
+				todayStats[name] = { name, wins: 0, losses: 0, games: 0, ptsFor: 0, ptsAgainst: 0 };
+			});
+
+			history.forEach(match => {
+				const teams = match.desc.split(' vs ');
+				const teamA = teams[0].split('/');
+				const teamB = teams[1].split('/');
+				const scores = match.score.split('-').map(Number);
+
+				[...teamA, ...teamB].forEach(name => {
+					if (!todayStats[name]) todayStats[name] = { name, wins: 0, losses: 0, games: 0, ptsFor: 0, ptsAgainst: 0 };
+					const s = todayStats[name];
+					s.games++;
+					const isTeamA = teamA.includes(name);
+					const myScore = isTeamA ? scores[0] : scores[1];
+					const oppScore = isTeamA ? scores[1] : scores[0];
+					if (myScore > oppScore) s.wins++; else if (myScore < oppScore) s.losses++;
+				});
+			});
+			return Object.values(todayStats);
+		}
+
+		function getAllTimeDUPR(playerName) {
+			const allStats = JSON.parse(localStorage.getItem('upb_stats')) || [];
+			const s = allStats.find(x => x.name === playerName);
+			if (!s || !s.games) return "2.00";
+			const wr = (s.wins / s.games);
+			const pd = (s.ptsFor - s.ptsAgainst) / s.games;
+			const base = 2.5 + (wr * 3.0) + (pd * 0.1);
+			const volumeFactor = Math.min(s.games / 20, 1);
+			return (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
+		}
+
+		function refreshStats() {
+			const currentDayStats = calculateTodayStats();
+			const allTimeStats = JSON.parse(localStorage.getItem('upb_stats')) || [];
+			const sortedToday = currentDayStats.sort((a, b) => b.wins - a.wins);
+
+			// Render Table Body
+			document.getElementById('leaderboardBody').innerHTML = sortedToday.map((s, i) => {
+				const qrId = `qr-container-${i}`;
+				const careerDupr = getAllTimeDUPR(s.name);
+				
+				// Critical: Timeout gives the browser time to render the 'qrId' div 
+				// before the QRCode library tries to find it.
+				setTimeout(() => {
+					const container = document.getElementById(qrId);
+					if (container && typeof QRCode !== 'undefined') {
+						container.innerHTML = ""; // Clear box
+						// Replace the old QRCode generation with this:
+						new QRCode(container, {
+							// This creates a link like: yourpage.html?viewplayer=Mikko
+							text: `${window.location.href.split('?')[0]}?viewplayer=${encodeURIComponent(s.name)}`,
+							width: 70,
+							height: 70,
+							colorDark: "#000000",
+							colorLight: "#ffffff",
+							correctLevel: QRCode.CorrectLevel.M
+						});
+					}
+				}, 100);
+
+				return `
+					<tr onclick="showPlayerCard('${s.name.replace(/'/g, "\\'")}')" style="cursor:pointer;">
+						<td class="rank">#${i + 1}</td>
+						<td class="player-name">${s.name}</td>
+						<td><span style="color:var(--winner)">${s.wins}W</span> - <span style="color:var(--danger)">${s.losses}L</span></td>
+						<td style="color:var(--grey); font-size: 0.85rem;">Today: ${s.games} Games</td>
+						<td><span class="dupr-badge" style="background:var(--primary); color:#000;">${careerDupr}</span></td>
+						<td>
+							<div id="${qrId}" style="width: 70px; height: 70px; background: white; padding: 5px; border-radius: 4px; display: flex; justify-content: center; align-items: center;"></div>
+						</td>
+					</tr>
+				`;
+			}).join('') || '<tr><td colspan="6" style="text-align:center; padding:20px;">Waiting for first match results...</td></tr>';
+
+			// Update Career Rankings Column
+			const sortedAllTime = [...allTimeStats].sort((a, b) => parseFloat(getAllTimeDUPR(b.name)) - parseFloat(getAllTimeDUPR(a.name))).slice(0, 10);
+			document.getElementById('allTimeLeaderboard').innerHTML = sortedAllTime.map((s, i) => `
+				<div class="history-item" style="border-left: 4px solid var(--accent);">
+					<div style="display:flex; justify-content:space-between; align-items:center;">
+						<div><span style="color:var(--grey); font-size:0.8rem; font-weight:bold;">#${i + 1}</span><span style="font-weight:700; margin-left:8px;">${s.name}</span></div>
+						<span style="color:var(--primary); font-weight:800;">${getAllTimeDUPR(s.name)}</span>
+					</div>
+				</div>
+			`).join('') || '<div style="color:var(--grey)">No career records found.</div>';
+		}
+
+		function showPlayerCard(name) {
+			const todayData = calculateTodayStats().find(x => x.name === name);
+			if (!todayData) return;
+			document.getElementById('cardName').innerText = name;
+			document.getElementById('cardDupr').innerText = getAllTimeDUPR(name);
+			document.getElementById('cardWins').innerText = todayData.wins;
+			document.getElementById('cardLoss').innerText = todayData.losses;
+			document.getElementById('statCardOverlay').style.display = 'flex';
+		}
+
+		// Initial load and periodic refresh
+		refreshStats();
+		setInterval(refreshStats, 5000);
+		// Auto-open player card if coming from a QR scan
+		window.addEventListener('load', () => {
+			const urlParams = new URLSearchParams(window.location.search);
+			const playerToView = urlParams.get('viewplayer');
+			
+			if (playerToView) {
+				// Short delay to ensure data has loaded from localStorage
+				setTimeout(() => {
+					showPlayerCard(playerToView);
+				}, 500);
+			}
+		});
+	</script>
+</body>
+</html>
