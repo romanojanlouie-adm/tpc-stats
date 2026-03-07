@@ -18,6 +18,7 @@
             --accent: #3b82f6; 
             --winner: #22c55e;
             --grey: #94a3b8;
+			--danger: #ef4444;
         }
 
         body { 
@@ -263,8 +264,7 @@
             <h1>PLAYER LEADERBOARD</h1>
             <div class="live-indicator"><div class="dot"></div> LIVE SYSTEM STATS</div>
         </div>
-        <button onclick="window.location.href='TPC.html'" style="background: transparent; border: 1px solid var(--grey); color: var(--text); padding: 10px 20px; border-radius: 10px; cursor: pointer;">Back to Console</button>
-    </header>
+        </header>
 
     <div class="stats-grid">
         <div class="card">
@@ -385,24 +385,44 @@
 				</tr>
 			`).join('') || '<tr><td colspan="5" style="text-align:center; padding:20px;">Waiting for live data...</td></tr>';
 
-			// 2. Render All-Time Rankings Column
+				// Inside renderLeaderboardUI function
+				// 2. Render All-Time Rankings Column
 			allTimeLeaderboard.innerHTML = sortedToday.slice(0, 10).map((s, i) => {
-				// Calculate reliability based on games played (max 100%)
-				const reliability = Math.min((s.games / 20) * 100, 100).toFixed(0);
+				// 1. DUPR Calculation (Matching TPC.html logic)
+				const wr = (s.wins / (s.games || 1));
+				const pd = (s.ptsFor - s.ptsAgainst) / (s.games || 1);
+				const base = 2.5 + (wr * 3.0) + (pd * 0.1);
+				const volumeFactor = Math.min(s.games / 20, 1);
+				const estDupr = (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
+
+				// 2. Reliability Calculation
+				const rel = Math.min((s.games / 20) * 100, 100).toFixed(0);
+
 				
+				// 3. Form Logic (Reversed to show latest on the other side)
+				const formHtml = s.lastFive && s.lastFive.length > 0 
+					? [...s.lastFive].reverse().map(f => `<span style="color:${f === 'W' ? 'var(--winner)' : 'var(--danger)'}; font-weight:800; margin-right:2px;">${f}</span>`).join('')
+					: `<span style="color:var(--grey)">No Games</span>`;
+
 				return `
-					<div class="stat-row-alt">
+					<div class="stat-row" style="display: flex; flex-direction: column; align-items: flex-start; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; cursor:pointer;" onclick="showPlayerCard('${s.name.replace(/'/g, "\\'")}')">
 						<div style="display:flex; justify-content:space-between; width:100%; margin-bottom: 5px;">
 							<span>
-								<strong style="color:var(--grey); margin-right:8px;">#${i + 1}</strong>
-								<strong>${s.name}</strong> 
+								<strong style="color:var(--primary); margin-right:5px;">#${i + 1}</strong>
+								<strong style="color:white;">${s.name}</strong> 
+								<small style="color:var(--grey)">(${s.games} Games)</small>
 							</span>
-							<b style="color:var(--primary)">${getAllTimeDUPR(s.name)}</b>
+							<b style="color:var(--primary)">${estDupr}</b>
 						</div>
+						
+						<div style="font-size: 0.65rem; color: var(--grey); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+							Form: ${formHtml}
+						</div>
+
 						<div style="width: 100%; font-size: 0.7rem; color: var(--grey);">
-							Reliability: ${reliability}%
-							<div class="reliability-bg">
-								<div class="reliability-fill" style="width: ${reliability}%;"></div>
+							Reliability: ${rel}%
+							<div style="width: 100%; background: #0f172a; height: 4px; border-radius: 10px; margin-top: 4px; overflow:hidden;">
+								<div style="width: ${rel}%; background: var(--primary); height: 100%;"></div>
 							</div>
 						</div>
 					</div>`;
@@ -410,15 +430,12 @@
 		}
 
 		function showPlayerCard(name) {
-			// Find the player in the cloudStats array we got from Firebase
+			// Find player in the cloud data received from Firebase
 			const pData = cloudStats.find(x => x.name === name);
 			
-			if (!pData) {
-				console.error("Player data not found in cloudStats");
-				return;
-			}
+			if (!pData) return;
 
-			// Update the modal text
+			// Populate the modal with Cloud Data
 			document.getElementById('cardName').innerText = name;
 			document.getElementById('cardDupr').innerText = getAllTimeDUPR(name);
 			document.getElementById('cardWins').innerText = pData.wins || 0;
@@ -429,7 +446,7 @@
 		}
 
 
-		async function downloadCurrentCard() {
+async function downloadCurrentCard() {
 			// 1. Reference elements
 			const card = document.getElementById('downloadableCard');
 			const closeBtn = document.getElementById('closeBtn');
@@ -470,4 +487,3 @@
 	</script>
 </body>
 </html>
-
