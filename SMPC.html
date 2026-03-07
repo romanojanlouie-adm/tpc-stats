@@ -598,7 +598,7 @@
     }
 
     function renderLeaderboard() {
-		const sorted = [...stats].sort((a,b) => parseFloat(getEstDUPR(b.name)) - parseFloat(getEstDUPR(a.name))).slice(0,8);
+		const sorted = [...stats].sort((a,b) => parseFloat(getEstDUPR(b.name)) - parseFloat(getEstDUPR(a.name))).slice(0,10);
 		document.getElementById('leaderboard').innerHTML = sorted.map(s => `
 			<div class="stat-row" style="flex-direction: column; align-items: flex-start; padding: 10px;">
 				<div style="display:flex; justify-content:space-between; width:100%; margin-bottom: 5px;">
@@ -655,9 +655,9 @@
 		
 		// 1. Export Data
 		let csvContent = "data:text/csv;charset=utf-8,Type,Name,Stat\n" + stats.map(s => `Stat,${s.name},${getEstDUPR(s.name)}`).join("\n");
-		triggerDownload(encodeURI(csvContent), `TPC_Report_${dateStr}.csv`);
+		triggerDownload(encodeURI(csvContent), `SMOC_Report_${dateStr}.csv`);
 		const jsonData = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stats));
-		triggerDownload(jsonData, `TPC_Stats_Backup_${dateStr}.json`);
+		triggerDownload(jsonData, `SMPC_Stats_Backup_${dateStr}.json`);
 
 		// 2. CLEAR SESSION DATA (This resets the spectator view)
 		players = [];      // Clears Queue
@@ -710,3 +710,4 @@
 </body>
 
 </html>
+
