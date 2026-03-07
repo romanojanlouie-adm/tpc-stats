@@ -326,262 +326,183 @@
 		</div>
 
 	<script>
-		function calculateTodayStats() {
-			const history = JSON.parse(localStorage.getItem('upb_history')) || [];
-			const queue = JSON.parse(localStorage.getItem('upb_queue')) || [];
-			const courts = JSON.parse(localStorage.getItem('upb_courts')) || [];
-			const todayStats = {};
+// 1. Firebase Configuration
+const firebaseConfig = {
+    databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-			// 1. Identify all unique players who were active today 
-			// (Waiting in queue OR currently on a court)
-			const activeNames = new Set([
-				...queue.map(p => p.name),
-				...courts.flatMap(c => c.players || []).map(p => p.name)
-			]);
+// Global variables to store the synced data from the Cloud
+let cloudHistory = [];
+let cloudStats = [];
+let cloudQueue = [];
+let cloudCourts = [];
 
-			// 2. IMPORTANT: Also add players found in the match history 
-			// This prevents them from disappearing if they leave the queue
-			history.forEach(match => {
-				const teams = match.desc.split(' vs ');
-				const allMatchPlayers = [...teams[0].split('/'), ...teams[1].split('/')];
-				allMatchPlayers.forEach(name => activeNames.add(name));
-			});
+// 2. THE SYNC ENGINE: Listen for changes from the Manager (SMPC.html)
+// We use 'tpc_live_stats' to match the path your Manager is already saving to
+db.ref('tpc_live_stats').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+        console.log("Cloud Update Received:", new Date().toLocaleTimeString());
+        
+        // Sync cloud data to local variables
+        // Note: data.players comes from the Manager's 'players' variable (the queue)
+        cloudHistory = data.history || [];
+        cloudStats = data.stats || [];
+        cloudQueue = data.players || []; 
+        cloudCourts = data.courts || [];
+        
+        // Trigger the UI refresh immediately
+        refreshStats();
+    }
+});
 
-			// 3. Initialize stat objects for everyone identified
-			activeNames.forEach(name => {
-				todayStats[name] = { 
-					name, 
-					wins: 0, 
-					losses: 0, 
-					games: 0, 
-					ptsFor: 0, 
-					ptsAgainst: 0 
-				};
-			});
+// 3. Logic Functions (Updated to use Cloud Variables instead of LocalStorage)
+function calculateTodayStats() {
+    const todayStats = {};
 
-			// 4. Calculate the wins, losses, and points from the history
-			history.forEach(match => {
-				const teams = match.desc.split(' vs ');
-				const teamA = teams[0].split('/');
-				const teamB = teams[1].split('/');
-				const scores = match.score.split('-').map(Number);
+    // Identify all unique players active today from the Cloud data
+    const activeNames = new Set([
+        ...cloudQueue.map(p => p.name),
+        ...cloudCourts.flatMap(c => c.players || []).map(p => p.name)
+    ]);
 
-				[...teamA, ...teamB].forEach(name => {
-					// Safety check in case a name exists in history but not in the initial set
-					if (!todayStats[name]) {
-						todayStats[name] = { name, wins: 0, losses: 0, games: 0, ptsFor: 0, ptsAgainst: 0 };
-					}
-					
-					const s = todayStats[name];
-					s.games++;
-					
-					const isTeamA = teamA.includes(name);
-					const myScore = isTeamA ? scores[0] : scores[1];
-					const oppScore = isTeamA ? scores[1] : scores[0];
-					
-					if (myScore > oppScore) {
-						s.wins++; 
-					} else if (myScore < oppScore) {
-						s.losses++;
-					}
-					
-					s.ptsFor += myScore;
-					s.ptsAgainst += oppScore;
-				});
-			});
+    cloudHistory.forEach(match => {
+        const teams = match.desc.split(' vs ');
+        const allMatchPlayers = [...teams[0].split('/'), ...teams[1].split('/')];
+        allMatchPlayers.forEach(name => activeNames.add(name));
+    });
 
-			return Object.values(todayStats);
-		}
+    activeNames.forEach(name => {
+        todayStats[name] = { name, wins: 0, losses: 0, games: 0, ptsFor: 0, ptsAgainst: 0 };
+    });
 
-		function getAllTimeDUPR(playerName) {
-			const allStats = JSON.parse(localStorage.getItem('upb_stats')) || [];
-			const s = allStats.find(x => x.name === playerName);
-			if (!s || !s.games) return "2.00";
-			const wr = (s.wins / s.games);
-			const pd = (s.ptsFor - s.ptsAgainst) / s.games;
-			const base = 2.5 + (wr * 3.0) + (pd * 0.1);
-			const volumeFactor = Math.min(s.games / 20, 1);
-			return (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
-		}
+    cloudHistory.forEach(match => {
+        const teams = match.desc.split(' vs ');
+        const teamA = teams[0].split('/');
+        const teamB = teams[1].split('/');
+        const scores = match.score.split('-').map(Number);
 
-		function refreshStats() {
-			const currentDayStats = calculateTodayStats();
-			const allTimeStats = JSON.parse(localStorage.getItem('upb_stats')) || [];
-			const sortedToday = currentDayStats.sort((a, b) => b.wins - a.wins);
+        [...teamA, ...teamB].forEach(name => {
+            if (!todayStats[name]) todayStats[name] = { name, wins: 0, losses: 0, games: 0, ptsFor: 0, ptsAgainst: 0 };
+            
+            const s = todayStats[name];
+            s.games++;
+            const isTeamA = teamA.includes(name);
+            const myScore = isTeamA ? scores[0] : scores[1];
+            const oppScore = isTeamA ? scores[1] : scores[0];
+            
+            if (myScore > oppScore) s.wins++; 
+            else if (myScore < oppScore) s.losses++;
+            
+            s.ptsFor += myScore;
+            s.ptsAgainst += oppScore;
+        });
+    });
 
-			// Render Table Body
-			document.getElementById('leaderboardBody').innerHTML = sortedToday.map((s, i) => {
-				const qrId = `qr-container-${i}`;
-				const careerDupr = getAllTimeDUPR(s.name);
-				
-				// Critical: Timeout gives the browser time to render the 'qrId' div 
-				// before the QRCode library tries to find it.
-				/*setTimeout(() => {
-					const container = document.getElementById(qrId);
-					if (container && typeof QRCode !== 'undefined') {
-						container.innerHTML = ""; // Clear box
-						// Replace the old QRCode generation with this:
-						new QRCode(container, {
-							// This creates a link like: yourpage.html?viewplayer=Mikko
-							text: `${window.location.href.split('?')[0]}?viewplayer=${encodeURIComponent(s.name)}`,
-							width: 70,
-							height: 70,
-							colorDark: "#000000",
-							colorLight: "#ffffff",
-							correctLevel: QRCode.CorrectLevel.M
-						});
-					}
-				}, 100);*/
+    return Object.values(todayStats);
+}
 
-				return `
-					<tr onclick="showPlayerCard('${s.name.replace(/'/g, "\\'")}')" style="cursor:pointer;">
-						<td class="rank">#${i + 1}</td>
-						<td class="player-name">${s.name}</td>
-						<td><span style="color:var(--winner)">${s.wins}W</span> - <span style="color:var(--danger)">${s.losses}L</span></td>
-						<td style="color:var(--grey); font-size: 0.85rem;">Today: ${s.games} Games</td>
-						<td><span class="dupr-badge" style="background:var(--primary); color:#000;">${careerDupr}</span></td>
-						
-					</tr>
-				`;
-			}).join('') || '<tr><td colspan="6" style="text-align:center; padding:20px;">Waiting for first match results...</td></tr>';
+function getAllTimeDUPR(playerName) {
+    const s = cloudStats.find(x => x.name === playerName);
+    if (!s || !s.games) return "2.00";
+    const wr = (s.wins / s.games);
+    const pd = (s.ptsFor - s.ptsAgainst) / s.games;
+    const base = 2.5 + (wr * 3.0) + (pd * 0.1);
+    const volumeFactor = Math.min(s.games / 20, 1);
+    return (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
+}
 
-			// Update Career Rankings Column
-			// Update Career Rankings Column to match TPC.html style
-			const sortedAllTime = [...allTimeStats]
-				.sort((a, b) => parseFloat(getAllTimeDUPR(b.name)) - parseFloat(getAllTimeDUPR(a.name)))
-				.slice(0, 10);
+function refreshStats() {
+    const currentDayStats = calculateTodayStats();
+    const sortedToday = currentDayStats.sort((a, b) => b.wins - a.wins);
 
-			document.getElementById('allTimeLeaderboard').innerHTML = sortedAllTime.map((s, i) => {
-				const reliability = Math.min((s.games / 20) * 100, 100).toFixed(0);
-				const careerDupr = getAllTimeDUPR(s.name);
-				
-				// Generate Form (Last 5) string
-				const formHtml = s.lastFive ? s.lastFive.map(f => 
-					`<span class="form-dot" style="color:${f==='W' ? 'var(--winner)' : '#ef4444'}">${f}</span>`
-				).join('') : '<span style="color:var(--grey)">-</span>';
+    // Render Main Leaderboard Table
+    document.getElementById('leaderboardBody').innerHTML = sortedToday.map((s, i) => {
+        const careerDupr = getAllTimeDUPR(s.name);
+        return `
+            <tr onclick="showPlayerCard('${s.name.replace(/'/g, "\\'")}')" style="cursor:pointer;">
+                <td class="rank">#${i + 1}</td>
+                <td class="player-name">${s.name}</td>
+                <td><span style="color:var(--winner)">${s.wins}W</span> - <span style="color:var(--danger)">${s.losses}L</span></td>
+                <td style="color:var(--grey); font-size: 0.85rem;">Today: ${s.games} Games</td>
+                <td><span class="dupr-badge" style="background:var(--primary); color:#fff; padding: 2px 8px; border-radius:4px;">${careerDupr}</span></td>
+            </tr>`;
+    }).join('') || '<tr><td colspan="5" style="text-align:center; padding:20px;">Waiting for live match data...</td></tr>';
 
-				return `
-					<div class="stat-row-alt">
-						<div style="display:flex; justify-content:space-between; width:100%; margin-bottom: 5px;">
-							<span>
-								<strong style="color:var(--grey); margin-right:8px;">#${i + 1}</strong>
-								<strong>${s.name}</strong> 
-								<small style="color:var(--grey)">(${s.games} Games)</small>
-							</span>
-							<b style="color:var(--primary)">${careerDupr}</b>
-						</div>
-						<div style="font-size: 0.65rem; color: var(--grey); margin-bottom: 4px;">
-							Form: ${formHtml}
-						</div>
-						<div style="width: 100%; font-size: 0.7rem; color: var(--grey);">
-							Reliability: ${reliability}%
-							<div class="reliability-bg">
-								<div class="reliability-fill" style="width: ${reliability}%;"></div>
-							</div>
-						</div>
-					</div>
-				`;
-			}).join('') || '<div style="color:var(--grey)">No career records found.</div>';
-		}
-		
-		
-		async function downloadPlayerImage(name) {
-			// 1. Populate the card data first
-			showPlayerCard(name);
-			
-			// 2. Small delay to ensure the DOM has updated
-			setTimeout(async () => {
-				const card = document.getElementById('downloadableCard');
-				const closeBtn = document.getElementById('closeBtn');
-				
-				// Hide the button so it doesn't appear in the photo
-				closeBtn.style.visibility = 'hidden';
-				
-				try {
-					const canvas = await html2canvas(card, {
-						backgroundColor: '#0f172a', // Matches your theme
-						scale: 2, // Higher quality
-						logging: false
-					});
-					
-					// 3. Create download link
-					const link = document.createElement('a');
-					link.download = `${name}_TPC_Stats.png`;
-					link.href = canvas.toDataURL('image/png');
-					link.click();
-				} catch (err) {
-					console.error("Capture failed", err);
-				} finally {
-					// Restore button and close overlay
-					closeBtn.style.visibility = 'visible';
-					document.getElementById('statCardOverlay').style.display = 'none';
-				}
-			}, 100);
-		}
-		
-		async function downloadCurrentCard() {
-			// 1. Reference elements
-			const card = document.getElementById('downloadableCard');
-			const closeBtn = document.getElementById('closeBtn');
-			const playerName = document.getElementById('cardName').innerText;
+    // Update Career Rankings Column
+    const sortedAllTime = [...cloudStats]
+        .sort((a, b) => parseFloat(getAllTimeDUPR(b.name)) - parseFloat(getAllTimeDUPR(a.name)))
+        .slice(0, 10);
 
-			// 2. Hide the button temporarily for the photo
-			closeBtn.style.display = 'none';
-			
-			// 3. Add a temporary border-glow for the photo
-			card.style.border = '2px solid #92d027';
+    document.getElementById('allTimeLeaderboard').innerHTML = sortedAllTime.map((s, i) => {
+        const reliability = Math.min((s.games / 20) * 100, 100).toFixed(0);
+        const careerDupr = getAllTimeDUPR(s.name);
+        const formHtml = s.lastFive ? s.lastFive.map(f => 
+            `<span class="form-dot" style="color:${f==='W' ? 'var(--winner)' : '#ef4444'}">${f}</span>`
+        ).join('') : '<span style="color:var(--grey)">-</span>';
 
-			try {
-				const canvas = await html2canvas(card, {
-					backgroundColor: '#0f172a',
-					scale: 3, // High resolution (makes the image crisp)
-					borderRadius: 24,
-					useCORS: true
-				});
+        return `
+            <div class="stat-row-alt">
+                <div style="display:flex; justify-content:space-between; width:100%; margin-bottom: 5px;">
+                    <span>
+                        <strong style="color:var(--grey); margin-right:8px;">#${i + 1}</strong>
+                        <strong>${s.name}</strong> 
+                    </span>
+                    <b style="color:var(--primary)">${careerDupr}</b>
+                </div>
+                <div style="font-size: 0.65rem; color: var(--grey); margin-bottom: 4px;">Form: ${formHtml}</div>
+                <div style="width: 100%; font-size: 0.7rem; color: var(--grey);">
+                    Reliability: ${reliability}%
+                    <div class="reliability-bg" style="background:#eee; height:4px; width:100%; border-radius:2px;">
+                        <div class="reliability-fill" style="width: ${reliability}%; background:var(--primary); height:100%; border-radius:2px;"></div>
+                    </div>
+                </div>
+            </div>`;
+    }).join('') || '<div style="color:var(--grey)">No career records found.</div>';
+}
 
-				// 4. Download the file
-				const link = document.createElement('a');
-				link.download = `TPC_Stats_${playerName}.png`;
-				link.href = canvas.toDataURL('image/png');
-				link.click();
-				
-			} catch (err) {
-				console.error("Capture failed", err);
-			} finally {
-				// 5. Restore UI
-				closeBtn.style.display = 'block';
-				card.style.border = '1px solid rgba(146, 208, 39, 0.3)';
-				document.getElementById('statCardOverlay').style.display = 'none';
-			}
-		}
-		
-		
+// 4. Interaction & Image Generation
+function showPlayerCard(name) {
+    const todayData = calculateTodayStats().find(x => x.name === name);
+    if (!todayData) return;
+    document.getElementById('cardName').innerText = name;
+    document.getElementById('cardDupr').innerText = getAllTimeDUPR(name);
+    document.getElementById('cardWins').innerText = todayData.wins;
+    document.getElementById('cardLoss').innerText = todayData.losses;
+    document.getElementById('statCardOverlay').style.display = 'flex';
+}
 
-		function showPlayerCard(name) {
-			const todayData = calculateTodayStats().find(x => x.name === name);
-			if (!todayData) return;
-			document.getElementById('cardName').innerText = name;
-			document.getElementById('cardDupr').innerText = getAllTimeDUPR(name);
-			document.getElementById('cardWins').innerText = todayData.wins;
-			document.getElementById('cardLoss').innerText = todayData.losses;
-			document.getElementById('statCardOverlay').style.display = 'flex';
-		}
+async function downloadCurrentCard() {
+    const card = document.getElementById('downloadableCard');
+    const closeBtn = document.getElementById('closeBtn');
+    const playerName = document.getElementById('cardName').innerText;
+    closeBtn.style.display = 'none';
+    card.style.border = '2px solid var(--primary)';
 
-		// Initial load and periodic refresh
-		refreshStats();
-		setInterval(refreshStats, 5000);
-		// Auto-open player card if coming from a QR scan
-		window.addEventListener('load', () => {
-			const urlParams = new URLSearchParams(window.location.search);
-			const playerToView = urlParams.get('viewplayer');
-			
-			if (playerToView) {
-				// Short delay to ensure data has loaded from localStorage
-				setTimeout(() => {
-					showPlayerCard(playerToView);
-				}, 500);
-			}
-		});
+    try {
+        const canvas = await html2canvas(card, { backgroundColor: '#f8f3e6', scale: 3, useCORS: true });
+        const link = document.createElement('a');
+        link.download = `SMPC_Stats_${playerName}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    } catch (err) { console.error("Capture failed", err); }
+    finally {
+        closeBtn.style.display = 'block';
+        card.style.border = '1px solid rgba(0,0,0,0.1)';
+        document.getElementById('statCardOverlay').style.display = 'none';
+    }
+}
+
+// Handle QR scan auto-open
+window.addEventListener('load', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const playerToView = urlParams.get('viewplayer');
+    if (playerToView) {
+        setTimeout(() => showPlayerCard(playerToView), 1000);
+    }
+});
 	</script>
 </body>
 </html>
