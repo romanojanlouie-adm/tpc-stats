@@ -9,27 +9,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
 		:root { 
-			--primary: #235B47;        /* Logo Green */
-			--primary-light: #3d7a64;  /* Lighter Green for buttons */
-			--logo-cream: #F2E8CF;     /* Logo Background */
-			--dark-bg: #d9cfb8;        /* Muted Vintage Paper */
-			--panel-bg: #f8f3e6;       /* Soft Cream Panel */
-			--text: #1a332a;           /* Deep Forest Green Text */
-			--accent: #4A8C73; 
-			--danger: #A63446; 
-			--grey: #8C7C65; 
-			--court-surface: #e5ddc8;  /* Subtle court tone */
-			--winner: #22c55e;
-			--loser: #f59e0b;
+			--primary: #1A4335;        /* Deeper Forest Green */
+			--primary-light: #2D5F4D;  
+			--logo-cream: #F5F1E3;     /* Brighter, cleaner cream */
+			--dark-bg: #D4C9B0;        /* Slightly warmer background */
+			--panel-bg: #FDFBF3;       /* High-contrast panel background */
+			--text: #0F261F;           
+			--accent: #528B71; 
+			--danger: #C1444E; 
+			--grey: #7A6F5D; 
+			--winner: #4CAF50;
+			--loser: #F9A825;
+			--shadow: 0 4px 20px rgba(0,0,0,0.08);
 		}
-        
-        * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
-        
-        body { 
+
+		body { 
 			background-color: var(--dark-bg); 
-			/* We are removing the radial gradient for a cleaner, vintage look */
 			color: var(--text); 
-			margin: 0; padding: 0; line-height: 1.5; min-height: 100vh;
+			margin: 0; padding: 0; 
+			line-height: 1.5; 
+			min-height: 100vh;
+			letter-spacing: -0.01em;
 		}
 
         input::-webkit-outer-spin-button,
@@ -37,21 +37,24 @@
         input[type=number] { -moz-appearance: textfield; }
 
         .hero-banner {
-			width: 100%; min-height: 140px;
-			display: flex; align-items: flex-end; padding: 25px;
-			position: relative; 
-			/* Thick border on the top and bottom to make it feel like a club banner */
-			border-top: 10px solid var(--primary);
-			border-bottom: 4px solid var(--primary);
-			background-color: var(--logo-cream); /* Header background is now your logo's cream */
+			width: 100%; 
+			min-height: 100px;
+			display: flex; 
+			align-items: center; 
+			padding: 0 40px;
+			background-color: #F2E6CC;
+			border-bottom: 2px solid rgba(0,0,0,0.05);
+			box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 		}
 
-        
-		.header-content h1 {
-			color: var(--primary); /* The main title is now your logo green */
-			text-shadow: 1px 1px 0px rgba(0,0,0,0.1); /* Subtle 3D effect */
+		.header-content, h1 {
+			display: flex;
+			align-items: center;
+			width: 100%;
+			max-width: 1800px;
+			margin: 0 auto;
+			gap: 20px;
 		}
-
         .logo-img { height: 65px; width: 65px; border-radius: 12px; border: 2px solid var(--primary); object-fit: cover; }
 
         .ultimate-grid { 
@@ -69,9 +72,9 @@
         }
 
         .panel { 
-            background: var(--panel-bg); padding: 20px; border-radius: 16px; 
+            background: #D4C9B0; padding: 20px; border-radius: 16px; 
             box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); margin-bottom: 20px; 
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 3px solid var(--primary-light);
         }
 
         .panel h3 { margin-top: 0; color: var(--primary); font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
@@ -81,10 +84,10 @@
         #queueList::-webkit-scrollbar-thumb { background: var(--grey); border-radius: 10px; }
 
 		.court-card { 
-			background: var(--panel-bg); 
+			background: #D4C9B0; 
 			border-radius: 24px; 
 			padding: 18px; 
-			border: 3px solid var(--primary); /* Bold green border for every court */
+			border: 3px solid var(--primary-light); /* Bold green border for every court */
 			position: relative; 
 		}
         .court-card.active { border: 2px solid var(--primary); box-shadow: 0 0 15px rgba(146, 208, 39, 0.15); }
@@ -100,7 +103,7 @@
 
         .timer-unit { 
             display: flex; justify-content: center; align-items: center;
-            gap: 4px; background: #fff; padding: 10px 15px; border-radius: 40px; border: 2px black solid; 
+            gap: 4px; background: #D4C9B0; padding: 10px 15px; border-radius: 12px; border: 2px #2D5F4D solid; 
             color: var(--primary); font-weight: bold; width: fit-content; margin: 15px auto 15px auto;
         }
 
@@ -116,23 +119,23 @@
         .t-btn-grey { background: #475569; }
 
         .court-map { 
-            background: var(--dark-bg); 
-            border: 4px solid #fff; 
+            background: #F2E6CC; 
+            border: 4px solid #000; 
             height: 360px; position: relative; border-radius: 12px; margin: 20px 0; overflow: hidden;
         }
         
-         .kitchen { position: absolute; top: 38%; bottom: 38%; left: 0; right: 0; background: var(--primary); border-top: 2px solid white; border-bottom: 2px solid white; z-index: 1; opacity: 1; }
-        .mid-line { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: rgba(255,255,255,0.4); z-index: 0; }
-        .net-line { position: absolute; top: 50%; left: 0; right: 0; height: 3px; background: #fff; z-index: 2; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+         .kitchen { position: absolute; top: 38%; bottom: 38%; left: 0; right: 0; background: var(--primary-light); border-top: 3px solid black; border-bottom: 3px solid black; z-index: 1; opacity: 1; }
+        .mid-line { position: absolute; top: 0; bottom: 0; left: 50%; width: 5px; background: #000; z-index: 0; }
+        .net-line { position: absolute; top: 50%; left: 0; right: 0; height: 3px; background: #000; z-index: 2; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
         
         .player-label { 
-            position: absolute; width: 44%; text-align: center; color: black; font-weight: 700; 
-            font-size: 0.8rem; background: white; padding: 12px 6px; border-radius: 10px; 
-            cursor: pointer; transition: 0.2s; border: 1px solid rgba(255,255,255,0.1); z-index: 3;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            position: absolute; width: 40%; text-align: center; color: #528B71; font-weight: 700; 
+            font-size: 0.8rem; background: #F2E6CC; padding: 12px 6px; border-radius: 10px; 
+            cursor: pointer; transition: 0.2s; border: 2px solid #528B71; z-index: 3;
+            
         }
-        .player-label:hover { border-color: var(--primary); background: #000; }
-        .player-label .swap-icon { font-size: 0.6rem; color: var(--primary); display: block; margin-top: 4px; }
+        .player-label:hover { border-color: var(--primary); background: #F5F1E3; }
+        .player-label .swap-icon { font-size: 0.6rem; color: var(--primary-light); display: block; margin-top: 4px; }
         
         .pos-top-l { top: 6%; left: 3%; } 
         .pos-top-r { top: 6%; right: 3%; }
@@ -143,10 +146,10 @@
         .btn-primary { background: var(--primary); color: #000; }
         .btn-accent { background: var(--accent); }
         
-        .score-input { width: 75px; height: 75px; text-align: center; font-size: 2.2rem; font-weight: 800; background: #fff; border: 2px solid #334155; border-radius: 16px; color: black; outline: none; }
+        .score-input { width: 75px; height: 75px; text-align: center; font-size: 2.2rem; font-weight: 800; background: #D4C9B0; border: 2px solid #528B71; border-radius: 16px; color: #528B71; outline: none; }
 
         .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; }
-        .stat-pill { background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 10px; font-size: 0.85rem; }
+        .stat-pill { background: #F2E6CC); padding: 8px 15px; border-radius: 10px; font-size: 0.85rem; }
 		
 		#matchHistory { 
 			font-size: 0.85rem; 
@@ -223,10 +226,10 @@
     <div class="header-content">
         <img src=".\logo.jpg" alt="Logo" class="logo-img">
         <div>
-            <h1 style="margin:0; font-size: 1.8rem;">SMPC</h1>
+            <h1 style="margin:0; font-size: 2rem;">SMPC</h1>
             <span style="color: var(--primary); font-weight: 600; font-size: 0.9rem;">Santa Maria Pickleball Club</span>
         </div>
-        <div style="display: flex; gap: 12px; margin-left: auto;">
+        <div style="display: flex; gap: 12px; margin-left: auto; margin-right: 2.5%;">
             <div class="stat-pill">Queue: <strong id="queueTotal">0</strong></div>
             <div class="stat-pill">Active: <strong id="activePlayers">0</strong></div>
             <button class="btn btn-primary" style="width:auto; padding: 8px 18px;" onclick="addCourt()">+ Court</button>
@@ -240,8 +243,8 @@
 			<h3>👤 Player Check-In</h3>
 			<input type="text" id="playerName" placeholder="ENTER NAME..." 
 				   onkeypress="if(event.key==='Enter') addCheckIn()" 
-				   style="width:100%; padding:15px; background:#fff; border:1px solid #fff; border-radius:12px; color:black; margin-bottom:12px; outline:none; text-transform: uppercase;">
-			<button class="btn btn-primary" onclick="addCheckIn()">Check In</button>
+				   style="width:100%; padding:5px; background: #D4C9B0; border:none; border-bottom:2px solid #000; border-radius:0; color:black; margin-bottom:12px; margin-right:12px; outline:none; text-transform: uppercase;">
+			<button class="btn btn-accent" onclick="addCheckIn()">Check In</button>
 		</div>
         <div class="panel">
             <h3>⏳ Waiting Queue</h3>
@@ -249,8 +252,8 @@
             <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 15px;">
                 <button class="btn btn-accent" onclick="matchmake('balanced')">Standard Match</button>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    <button class="btn" style="background: var(--winner); font-size: 0.7rem;" onclick="matchmake('winners')">Winners vs Winners</button>
-                    <button class="btn" style="background: var(--loser); font-size: 0.7rem;" onclick="matchmake('losers')">Losers vs Losers</button>
+                    <button class="btn" style="background: #528B71; font-size: 0.7rem;" onclick="matchmake('winners')">Winners vs Winners</button>
+                    <button class="btn" style="background: #528B71; font-size: 0.7rem;" onclick="matchmake('losers')">Losers vs Losers</button>
                 </div>
             </div>			
         </div>
@@ -276,10 +279,10 @@
 				<button id="undoBtn" class="btn" style="margin-bottom: 8px; background: #64748b; display: none;" onclick="undoLastMatch()">↩️ Undo Last Match</button>
 				<button class="btn btn-accent" style="margin-bottom: 8px;" onclick="endDay()">End Day (Export & Backup)</button>
 				
-				<label class="btn" style="margin-bottom: 8px; background: #475569; cursor: pointer; font-size: 0.7rem;">
-					Recover Stats (Upload JSON)
+				<button class="btn" style="margin-bottom: 8px; background: #475569; cursor: pointer; font-size: 0.7rem;">
+					Recover Stats
 					<input type="file" id="statUpload" hidden onchange="importStats(event)">
-				</label>
+				</button>
 				<button class="btn" style="margin-bottom: 8px; background: #8b5cf6;" onclick="window.location.href='tournament.html'">🏆 Tournament Mode</button>
 			</div>
         <button class="btn" style="background:transparent; border: 1px solid var(--danger); color: var(--danger);" onclick="resetSystem()">Reset System</button>
@@ -589,7 +592,7 @@
                         <b>VS</b>
                         <input type="number" class="score-input" value="${c.scoreB}" oninput="courts.find(x=>x.id===${c.id}).scoreB=this.value">
                     </div>
-                    <button class="btn btn-primary" onclick="finishMatch(${c.id})">Finish Match</button>
+                    <button class="btn btn-accent" onclick="finishMatch(${c.id})">Finish Match</button>
                 ` : `<div style="height:380px; display:flex; align-items:center; justify-content:center; color:#334155; border:2px dashed #334155; border-radius:24px">VACANT</div>`}
             </div>
         `}).join('');
@@ -600,7 +603,7 @@
 		document.getElementById('leaderboard').innerHTML = sorted.map((s, i) => `
 			<div class="stat-row" style="flex-direction: column; align-items: flex-start; padding: 10px;">
 				<div style="display:flex; justify-content:space-between; width:100%; margin-bottom: 5px;">
-					<span><strong># ${i+1} ${s.name}</strong> <small style="color:var(--grey)">(${s.games} Games)</small></span>
+					<span><strong># ${i+1}. ${s.name}</strong> <small style="color:var(--grey)">(${s.games} Games)</small></span>
 					<b style="color:var(--primary)">${getEstDUPR(s.name)}</b>
 				</div>
                 <div style="font-size: 0.65rem; color: var(--grey); margin-bottom: 4px;">
