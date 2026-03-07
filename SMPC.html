@@ -525,6 +525,8 @@
 			// Save to Firebase (Only once the user stops typing/clicking for 0.5s)
 			if (typeof db !== 'undefined' && db) {
 				db.ref('tpc_live_stats').set({
+					players: players,
+					courts: courts,
 					stats: stats,
 					history: history,
 					lastUpdated: Date.now()
@@ -706,4 +708,5 @@
     saveAndRender();
 </script>
 </body>
+
 </html>
