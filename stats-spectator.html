@@ -428,8 +428,46 @@
 			document.getElementById('statCardOverlay').style.display = 'flex';
 		}
 
+
+		async function downloadCurrentCard() {
+			// 1. Reference elements
+			const card = document.getElementById('downloadableCard');
+			const closeBtn = document.getElementById('closeBtn');
+			const playerName = document.getElementById('cardName').innerText;
+
+			// 2. Hide the button temporarily for the photo
+			closeBtn.style.display = 'none';
+			
+			// 3. Add a temporary border-glow for the photo
+			card.style.border = '2px solid #92d027';
+
+			try {
+				const canvas = await html2canvas(card, {
+					backgroundColor: '#0f172a',
+					scale: 3, // High resolution (makes the image crisp)
+					borderRadius: 24,
+					useCORS: true
+				});
+
+				// 4. Download the file
+				const link = document.createElement('a');
+				link.download = `TPC_Stats_${playerName}.png`;
+				link.href = canvas.toDataURL('image/png');
+				link.click();
+				
+			} catch (err) {
+				console.error("Capture failed", err);
+			} finally {
+				// 5. Restore UI
+				closeBtn.style.display = 'block';
+				card.style.border = '1px solid rgba(146, 208, 39, 0.3)';
+				document.getElementById('statCardOverlay').style.display = 'none';
+			}
+		}
+
 		// Initialize
 		refreshStats();
 	</script>
 </body>
 </html>
+
