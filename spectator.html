@@ -84,28 +84,39 @@
         }
 
         function render(id, categoryData) {
-            const container = document.getElementById(id);
-            if (!categoryData || !categoryData.teams || categoryData.teams.length === 0) {
-                container.innerHTML = "No teams active";
-                return;
-            }
+			const container = document.getElementById(id);
+			if (!categoryData || !categoryData.teams || categoryData.teams.length === 0) {
+				container.innerHTML = "No teams active";
+				return;
+			}
 
-            // Sort teams by wins or points
-            const sorted = [...categoryData.teams].sort((a, b) => 
-                categoryData.rankBy === 'wins' ? (b.w - a.w) : (b.pts - a.pts)
-            );
+			const isNovice = id.includes('novice');
 
-            container.innerHTML = sorted.map((t, i) => `
-                <div class="team-card">
-                    <div class="rank">${i + 1}</div>
-                    <div class="team-info">
-                        <div class="team-name">Team ${t.id}</div>
-                        <small style="color:#94a3b8">${t.woman.name} / ${t.men[0].name} / ${t.men[1].name}</small>
-                    </div>
-                    <div class="stat">${categoryData.rankBy === 'wins' ? t.w + 'W' : t.pts + 'pts'}</div>
-                </div>
-            `).join('');
-        }
+			const sorted = [...categoryData.teams].sort((a, b) => 
+				categoryData.rankBy === 'wins' ? (b.w - a.w || b.pts - a.pts) : (b.pts - a.pts || b.w - a.w)
+			);
+
+			container.innerHTML = sorted.map((t, i) => {
+				// Adaptive roster display: handles Novice (3M/3W) vs Intermediate (2M/1W)
+				let rosterInfo;
+				if (isNovice && t.women) {
+					rosterInfo = `M: ${t.men.map(m => m.name).join(', ')} / W: ${t.women.map(w => w.name).join(', ')}`;
+				} else {
+					rosterInfo = `${t.woman ? t.woman.name : 'TBD'} / ${t.men[0].name} / ${t.men[1].name}`;
+				}
+
+				return `
+					<div class="team-card">
+						<div class="rank">${i + 1}</div>
+						<div class="team-info">
+							<div class="team-name">Team ${t.id}</div>
+							<small style="color:#94a3b8">${rosterInfo}</small>
+						</div>
+						<div class="stat">${categoryData.rankBy === 'wins' ? t.w + 'W' : t.pts + 'pts'}</div>
+					</div>
+				`;
+			}).join('');
+		}
 		
 		
 		function renderLiveMatches(data) {
