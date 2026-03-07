@@ -525,8 +525,6 @@
 			// Save to Firebase (Only once the user stops typing/clicking for 0.5s)
 			if (typeof db !== 'undefined' && db) {
 				db.ref('tpc_live_stats').set({
-					players: players,
-					courts: courts,
 					stats: stats,
 					history: history,
 					lastUpdated: Date.now()
@@ -599,10 +597,10 @@
 
     function renderLeaderboard() {
 		const sorted = [...stats].sort((a,b) => parseFloat(getEstDUPR(b.name)) - parseFloat(getEstDUPR(a.name))).slice(0,10);
-		document.getElementById('leaderboard').innerHTML = sorted.map(s => `
+		document.getElementById('leaderboard').innerHTML = sorted.map((s, i) => `
 			<div class="stat-row" style="flex-direction: column; align-items: flex-start; padding: 10px;">
 				<div style="display:flex; justify-content:space-between; width:100%; margin-bottom: 5px;">
-					<span><strong>${s.name}</strong> <small style="color:var(--grey)">(${s.games} Games)</small></span>
+					<span><strong># ${i+1} ${s.name}</strong> <small style="color:var(--grey)">(${s.games} Games)</small></span>
 					<b style="color:var(--primary)">${getEstDUPR(s.name)}</b>
 				</div>
                 <div style="font-size: 0.65rem; color: var(--grey); margin-bottom: 4px;">
@@ -655,7 +653,7 @@
 		
 		// 1. Export Data
 		let csvContent = "data:text/csv;charset=utf-8,Type,Name,Stat\n" + stats.map(s => `Stat,${s.name},${getEstDUPR(s.name)}`).join("\n");
-		triggerDownload(encodeURI(csvContent), `SMOC_Report_${dateStr}.csv`);
+		triggerDownload(encodeURI(csvContent), `TPC_Report_${dateStr}.csv`);
 		const jsonData = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stats));
 		triggerDownload(jsonData, `SMPC_Stats_Backup_${dateStr}.json`);
 
@@ -677,7 +675,7 @@
 		announce("Notice. The day has ended and session data cleared.");
 		
 		if (db) {
-			firebase.database().ref('tpc_live_stats').remove(); 
+			firebase.database().ref('SMPC_live_stats').remove(); 
 		}
 	}
     function triggerDownload(uri, fileName) {
@@ -708,6 +706,4 @@
     saveAndRender();
 </script>
 </body>
-
 </html>
-
