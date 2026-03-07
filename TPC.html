@@ -633,46 +633,36 @@
     }, 1000);
 
 	function endDay() {
-		if (!confirm("End session? Matches and Stats will be exported.")) return;
-		
-		const dateStr = new Date().toLocaleDateString();
-		
-		// 1. Export Data
-		let csvContent = "data:text/csv;charset=utf-8,Type,Name,Stat\n" + stats.map(s => `Stat,${s.name},${getEstDUPR(s.name)}`).join("\n");
-		triggerDownload(encodeURI(csvContent), `TPC_Report_${dateStr}.csv`);
-		const jsonData = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stats));
-		triggerDownload(jsonData, `TPC_Stats_Backup_${dateStr}.json`);
+    if (!confirm("End session? Queue and Courts will be cleared, but All-Time Stats will be saved.")) return;
+    
+    const dateStr = new Date().toLocaleDateString();
+    
+    // 1. Export Backup (Keep this for safety)
+    const jsonData = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stats));
+    triggerDownload(jsonData, `TPC_Stats_Backup_${dateStr}.json`);
 
-		// 2. CLEAR SESSION DATA (This resets the spectator view)
-		players = [];      // Clears Queue
-		history = [];      // Clears "Today's" match history
-		
-		// 3. Reset Courts to empty
-		courts.forEach(c => {
-			c.status = 'empty';
-			c.players = [];
-			c.scoreA = 0;
-			c.scoreB = 0;
-			c.timerActive = false;
-		});
+    // 2. Clear ONLY Session Data
+    players = [];        // Clears the Waiting Queue
+    history = [];        // Clears Today's Match History list
+    
+    // 3. Reset Courts to Vacant
+    courts.forEach(c => {
+        c.status = 'empty';
+        c.players = [];
+        c.scoreA = 0;
+        c.scoreB = 0;
+        c.timerActive = false;
+        c.matchType = '';
+    });
 
-		// 4. Save and Refresh
-		saveAndRender(); 
-		announce("Notice. The day has ended and session data cleared.");
-		
-		// 5. Firebase Cleanup
-		if (db) {
-			// Clear the live scoreboard stats
-			firebase.database().ref('tpc_live_stats').remove(); 
-			
-			// NEW: Clear the temporary QR image links
-			firebase.database().ref('temp_qr_links').remove().then(() => {
-				console.log("Cloud QR links cleared successfully.");
-			}).catch((error) => {
-				console.error("Error clearing QR links:", error);
-			});
-		}
-	}
+    // NOTE: We do NOT set stats = [] here. 
+    // This allows the "All-Time Ranking" to stay visible.
+
+    // 4. Update Firebase and Local Storage
+    saveAndRender(); 
+    
+    announce("Notice. The session has ended. Queue and courts have been cleared.");
+}
     function triggerDownload(uri, fileName) {
         const link = document.createElement("a");
         link.setAttribute("href", uri); link.setAttribute("download", fileName);
@@ -743,3 +733,4 @@
 </script>
 </body>
 </html>
+
