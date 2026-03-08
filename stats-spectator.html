@@ -110,7 +110,7 @@
 		}
 		
 		
-		/* New styles to match TPC.html Leaderboard */
+	
 		.stat-row-alt { 
 			display: flex; 
 			flex-direction: column; 
@@ -339,21 +339,64 @@ let cloudStats = [];
 let cloudQueue = [];
 let cloudCourts = [];
 
-// 2. THE SYNC ENGINE: Listen for changes from the Manager (SMPC.html)
-// We use 'tpc_live_stats' to match the path your Manager is already saving to
-db.ref('tpc_live_stats').on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-        console.log("Cloud Update Received:", new Date().toLocaleTimeString());
+
+// 2. THE SYNC ENGINE: Merging multiple device instances
+db.ref('SMPC_live_stats').on('value', (snapshot) => {
+    const allDevicesData = snapshot.val();
+    
+    if (allDevicesData) {
+        console.log("Cloud Update Received (Merged):", new Date().toLocaleTimeString());
         
-        // Sync cloud data to local variables
-        // Note: data.players comes from the Manager's 'players' variable (the queue)
-        cloudHistory = data.history || [];
-        cloudStats = data.stats || [];
-        cloudQueue = data.players || []; 
-        cloudCourts = data.courts || [];
+        // Reset global arrays before merging fresh data
+        cloudHistory = [];
+        cloudStats = [];
+        cloudQueue = [];
+        cloudCourts = [];
+
+        // Temporary maps to merge stats and players without duplicates
+        const mergedStatsMap = {};
+
+        // Loop through every device instance in the database
+        Object.keys(allDevicesData).forEach(deviceID => {
+            const device = allDevicesData[deviceID];
+
+            // 1. Merge Match History
+            if (device.history) {
+                cloudHistory = cloudHistory.concat(device.history);
+            }
+
+            // 2. Merge Courts (showing all active courts from all laptops)
+            if (device.courts) {
+                cloudCourts = cloudCourts.concat(device.courts);
+            }
+
+            // 3. Merge Queue (data.players)
+            if (device.players) {
+                cloudQueue = cloudQueue.concat(device.players);
+            }
+
+            // 4. Merge Career Stats (Totaling wins/losses for the same player name)
+            if (device.stats) {
+                device.stats.forEach(player => {
+                    if (!mergedStatsMap[player.name]) {
+                        mergedStatsMap[player.name] = { ...player };
+                    } else {
+                        mergedStatsMap[player.name].wins += (player.wins || 0);
+                        mergedStatsMap[player.name].losses += (player.losses || 0);
+                        mergedStatsMap[player.name].games += (player.games || 0);
+                        mergedStatsMap[player.name].ptsFor += (player.ptsFor || 0);
+                        mergedStatsMap[player.name].ptsAgainst += (player.ptsAgainst || 0);
+                        // Keep the most recent 'lastFive' record if available
+                        if (player.lastFive) mergedStatsMap[player.name].lastFive = player.lastFive;
+                    }
+                });
+            }
+        });
+
+        // Convert merged stats map back into the cloudStats array
+        cloudStats = Object.values(mergedStatsMap);
         
-        // Trigger the UI refresh immediately
+        // Trigger the UI refresh with the combined data
         refreshStats();
     }
 });
@@ -503,6 +546,11 @@ window.addEventListener('load', () => {
         setTimeout(() => showPlayerCard(playerToView), 1000);
     }
 });
+
+
+
+
+
 	</script>
 </body>
 </html>
