@@ -5,7 +5,7 @@
 	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMPC - Paddle Manager</title>
+    <title>The Pickleball Center - Management System Pro</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
 		:root { 
@@ -517,7 +517,9 @@
 		renderCourts(); 
 		renderLeaderboard();
 
-		// Delay the heavy saving (LocalStorage and Firebase) by 500ms
+const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
+
+	// Delay the heavy saving (LocalStorage and Firebase) by 500ms
 		saveTimeout = setTimeout(() => {
 			// Save to LocalStorage
 			localStorage.setItem('upb_queue', JSON.stringify(players));
@@ -527,7 +529,7 @@
 
 			// Save to Firebase (Only once the user stops typing/clicking for 0.5s)
 			if (typeof db !== 'undefined' && db) {
-				db.ref('tpc_live_stats').set({
+				db.ref(dbRef).set({
 					stats: stats,
 					history: history,
 					lastUpdated: Date.now()
@@ -656,7 +658,7 @@
 		
 		// 1. Export Data
 		let csvContent = "data:text/csv;charset=utf-8,Type,Name,Stat\n" + stats.map(s => `Stat,${s.name},${getEstDUPR(s.name)}`).join("\n");
-		triggerDownload(encodeURI(csvContent), `TPC_Report_${dateStr}.csv`);
+		triggerDownload(encodeURI(csvContent), `SMPC_Report_${dateStr}.csv`);
 		const jsonData = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stats));
 		triggerDownload(jsonData, `SMPC_Stats_Backup_${dateStr}.json`);
 
@@ -678,7 +680,7 @@
 		announce("Notice. The day has ended and session data cleared.");
 		
 		if (db) {
-			firebase.database().ref('SMPC_live_stats').remove(); 
+			firebase.database().ref('SMPC_live_stats/' + instanceID).remove();
 		}
 	}
     function triggerDownload(uri, fileName) {
@@ -703,12 +705,23 @@
 	  firebase.initializeApp(firebaseConfig);
 	  const db = firebase.database();
 	  
+	function getDeviceInstanceID() {
+		let instanceID = localStorage.getItem('smpc_instance_id');
+		
+		if (!instanceID) {
+			// Generate a random 8-character ID (e.g., "ct-x9a2b")
+			instanceID = 'inst-' + Math.random().toString(36).substr(2, 8);
+			localStorage.setItem('smpc_instance_id', instanceID);
+		}
+		
+		return instanceID;
+	}
 
-	
+	const instanceID = getDeviceInstanceID();
+	console.log("Current Device Instance ID:", instanceID);	
+		
 	
     saveAndRender();
 </script>
 </body>
 </html>
-
-
