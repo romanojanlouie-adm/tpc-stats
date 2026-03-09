@@ -379,14 +379,40 @@
     }
 
     // --- CORE LOGIC ---
-    function addCheckIn() {
-        const input = document.getElementById('playerName');
-        const name = input.value.trim().toUpperCase(); 
-        if (!name) return;
-        getPStats(name);
-        players.push({ name, joined: Date.now() });
-        input.value = '';
-        saveAndRender();
+// --- UPDATED CORE LOGIC ---
+	async function addCheckIn() {
+		const input = document.getElementById('playerName');
+		const name = input.value.trim().toUpperCase(); 
+		if (!name) return;
+
+		// 1. CHECK REMOTE DATABASE FOR EXISTING STATS
+		try {
+			// We look in a global 'SMPC_all_players' node so stats persist across sessions/instances
+			const snapshot = await db.ref('SMPC_all_players/' + name).once('value');
+			const remoteStats = snapshot.val();
+
+			if (remoteStats) {
+				// Update local stats array with the data from the other instance
+				const localIdx = stats.findIndex(s => s.name === name);
+				if (localIdx !== -1) {
+					stats[localIdx] = remoteStats;
+				} else {
+					stats.push(remoteStats);
+				}
+				console.log(`Carried over stats for ${name}`);
+			} else {
+				// New player: Initialize locally if they don't exist
+				getPStats(name);
+			}
+		} catch (err) {
+			console.error("Database sync failed, using local stats only:", err);
+			getPStats(name);
+		}
+
+		// 2. PROCEED TO QUEUE
+		players.push({ name, joined: Date.now() });
+		input.value = '';
+		saveAndRender();
 	}
 
     function matchmake(type = 'balanced') {
@@ -548,6 +574,12 @@ const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
 				});
 			}
 		}, 500);
+		
+	stats.forEach(s => {
+		db.ref('SMPC_all_players/' + s.name).set(s);
+	});		
+		
+		
 	}
 
     function renderQueue() {
