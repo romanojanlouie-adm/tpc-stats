@@ -16,9 +16,9 @@
 			--panel-bg: #FDFBF3;       /* High-contrast panel background */
 			--text: #0F261F;           
 			--accent: #528B71; 
-			--danger: #C1444E; 
+			--danger: #F32013 ; 
 			--grey: #7A6F5D; 
-			--winner: #4CAF50;
+			--winner: #2D5F4D;
 			--loser: #F9A825;
 			--shadow: 0 4px 20px rgba(0,0,0,0.08);
 		}
@@ -38,12 +38,12 @@
 
         .hero-banner {
 			width: 100%; 
-			min-height: 100px;
+			min-height: 120px;
 			display: flex; 
 			align-items: center; 
 			padding: 0 40px;
-			background-color: #F2E6CC;
-			border-bottom: 2px solid rgba(0,0,0,0.05);
+			background-color: #3D7A64;
+			border-bottom: 2px solid #528B71;
 			box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 		}
 
@@ -55,7 +55,7 @@
 			margin: 0 auto;
 			gap: 20px;
 		}
-        .logo-img { height: 65px; width: 65px; border-radius: 12px; border: 2px solid var(--primary); object-fit: cover; }
+        .logo-img { height: 95px; width: 350px; }
 
         .ultimate-grid { 
             display: grid; 
@@ -73,7 +73,7 @@
 
         .panel { 
             background: #D4C9B0; padding: 20px; border-radius: 16px; 
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); margin-bottom: 20px; 
+            margin-bottom: 20px; 
             border: 3px solid var(--primary-light);
         }
 
@@ -148,7 +148,7 @@
         
         .score-input { width: 75px; height: 75px; text-align: center; font-size: 2.2rem; font-weight: 800; background: #D4C9B0; border: 2px solid #528B71; border-radius: 16px; color: #528B71; outline: none; }
 
-        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #D4C9B0; border-radius: 12px; margin-bottom: 8px; }
         .stat-pill { background: #F2E6CC); padding: 8px 15px; border-radius: 10px; font-size: 0.85rem; }
 		
 		#matchHistory { 
@@ -224,15 +224,13 @@
 
 <header class="hero-banner">
     <div class="header-content">
-        <img src=".\logo.jpg" alt="Logo" class="logo-img">
-        <div>
-            <h1 style="margin:0; font-size: 2rem;">SMPC</h1>
-            <span style="color: var(--primary); font-weight: 600; font-size: 0.9rem;">Santa Maria Pickleball Club</span>
-        </div>
+        <img src=".\logo.png" alt="Logo" class="logo-img">
+        
         <div style="display: flex; gap: 12px; margin-left: auto; margin-right: 2.5%;">
-            <div class="stat-pill">Queue: <strong id="queueTotal">0</strong></div>
-            <div class="stat-pill">Active: <strong id="activePlayers">0</strong></div>
-            <button class="btn btn-accent" style="width:auto; padding: 8px 18px;" onclick="addCourt()">+ Court</button>
+			<div class="stat-pill">Players: <strong id="playerTotal">0</strong></div>
+            <div class="stat-pill">On Queue: <strong id="queueTotal">0</strong></div>
+            <div class="stat-pill">On Court: <strong id="activePlayers">0</strong></div>
+			<button class="btn btn-accent" style="width:auto; padding: 8px 18px;" onclick="addCourt()">+ Court</button>
         </div>
     </div>
 </header>
@@ -274,23 +272,30 @@
         </div>
 			<div class="panel">
 				<h3>⚙️ System Controls</h3>
-				<button class="btn" style="margin-bottom: 8px; background: #0ea5e9;" onclick="window.open('stats-spectator.html', '_blank')">📊 Spectator Stats View</button>
+				<button class="btn" style="margin-bottom: 8px; background: #aec6cf;" onclick="window.open('stats-spectator.html', '_blank')">📊 Spectator Stats View</button>
 				
 				<button id="undoBtn" class="btn" style="margin-bottom: 8px; background: #64748b; display: none;" onclick="undoLastMatch()">↩️ Undo Last Match</button>
 				<button class="btn btn-accent" style="margin-bottom: 8px;" onclick="endDay()">End Day (Export & Backup)</button>
-				
-				<button class="btn" style="margin-bottom: 8px; background: #475569; cursor: pointer; font-size: 0.7rem;">
+								
+				<button class="btn" style="margin-bottom: 8px; background: #475569;" 
+						onclick="document.getElementById('statUpload').click()">
 					Recover Stats
-					<input type="file" id="statUpload" hidden onchange="importStats(event)">
 				</button>
-				<button class="btn" style="margin-bottom: 8px; background: #8b5cf6;" onclick="window.location.href='tournament.html'">🏆 Tournament Mode</button>
+				<input type="file" id="statUpload" style="display:none" onchange="importStats(event)">
+				
+				
+				<button class="btn" style="margin-bottom: 8px; background: #C3B1E1;" onclick="window.location.href='tournament.html'">🏆 Tournament Mode</button>
 			</div>
-        <button class="btn" style="background:transparent; border: 1px solid var(--danger); color: var(--danger);" onclick="resetSystem()">Reset System</button>
+        <button class="btn" style="background:transparent; border: 1px solid var(--danger); color: var(--danger);" onclick="resetSystem()">⚠️ Reset System</button>
     </div>
 </div>
 
 <script>
-    const pronunciationGuide = { "MIKKO ROMANO": "BOSS-MIKKO!", "LEBRON": "Le-Bron James" };
+
+    const pronunciationGuide = { "MIKKO ROMANO": "BOSS-MIKKO!",
+								 "ARYZ": "R-riss!",
+								 "ALLEY": "Ah-lay"
+							   };
 
     // --- STATE MANAGEMENT ---
     let players = JSON.parse(localStorage.getItem('upb_queue')) || [];
@@ -505,6 +510,8 @@
         closeModal(); saveAndRender();
     }
 
+
+
     // --- RENDER ---
     let saveTimeout;
    function saveAndRender() {
@@ -513,6 +520,7 @@
 		// Update the UI immediately so the manager sees changes instantly
 		document.getElementById('queueTotal').innerText = players.length;
 		document.getElementById('activePlayers').innerText = courts.filter(c => c.status === 'playing').length * 4;
+		document.getElementById('playerTotal').innerText = (players.length + courts.filter(c => c.status === 'playing').length * 4);
 		renderQueue(); 
 		renderCourts(); 
 		renderLeaderboard();
@@ -554,7 +562,7 @@ const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
 				<div style="font-size: 0.75rem; color: var(--primary);">EST DUPR: ${getEstDUPR(p.name)}</div>
 				<div style="font-size: 0.7rem; color: var(--grey); width: 100%;">
 					Wait: ${Math.floor((Date.now() - p.joined)/60000)}m | Rel: ${rel}%
-					<div style="width: 100%; background: #334155; height: 3px; border-radius: 2px; margin-top: 2px;">
+					<div style="width: 100%; background: grey; height: 3px; border-radius: 2px; margin-top: 2px;">
 						<div style="width: ${rel}%; background: var(--accent); height: 100%;"></div>
 					</div>
 				</div>
@@ -609,12 +617,12 @@ const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
 					<b style="color:var(--primary)">${getEstDUPR(s.name)}</b>
 				</div>
                 <div style="font-size: 0.65rem; color: var(--grey); margin-bottom: 4px;">
-                    Form: ${s.lastFive ? s.lastFive.map(f => `<span style="color:${f==='W'? 'var(--winner)':'var(--danger)'}">${f}</span>`).join(' ') : 'N/A'}
+                    Streak: ${s.lastFive ? s.lastFive.slice().reverse().map(f => `<span style="color:${f==='W'? 'var(--winner)':'var(--danger)'}">${f}</span>`).join(' ') : 'N/A'}
                 </div>
 				<div style="width: 100%; font-size: 0.7rem; color: var(--grey);">
 					Reliability: ${getReliability(s.name)}%
-					<div style="width: 100%; background: #0f172a; height: 4px; border-radius: 10px; margin-top: 2px; overflow:hidden;">
-						<div style="width: ${getReliability(s.name)}%; background: var(--primary); height: 100%;"></div>
+					<div style="width: 100%; background: grey; height: 4px; border-radius: 10px; margin-top: 2px; overflow:hidden;">
+						<div style="width: ${getReliability(s.name)}%; background: var(--accent); height: 100%;"></div>
 					</div>
 				</div>
 			</div>`).join('');
