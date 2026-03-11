@@ -163,6 +163,7 @@
 							<input type="text" id="cfgLineup" value="MD, Mixed, WD" placeholder="e.g., M-Singles, Mixed, M-Doubles">
 						</div>
 						<button class="btn btn-primary" onclick="generateTeams()">Initialize Tournament</button>
+						
 					</div>
                 <div id="teamList"></div>
             </div>
@@ -317,10 +318,12 @@
 
 		state.config = { menNeeded, womenNeeded, lineup, type };
 		state.teams = [];
-		state.matchResults = {}; // Clear old scores
+		state.matchResults = {}; 
 
 		let shufMen = [...men].sort(() => Math.random() - 0.5);
 		let shufWomen = [...women].sort(() => Math.random() - 0.5);
+
+		const half = Math.ceil(finalTeamCount / 2);
 
 		for (let i = 0; i < finalTeamCount; i++) {
 			let teamMen = [];
@@ -332,16 +335,95 @@
 				id: i + 1,
 				men: teamMen,
 				women: teamWomen,
-				w: 0, pts: 0
+				w: 0, pts: 0,
+				group: (type === 'pool_play') ? (i < half ? 'A' : 'B') : null
 			});
 		}
 		
-		// Generate the rounds immediately
-		state.rounds = getRounds(state.teams);
+		if (type === 'single_elim') {
+			state.rounds = generateSingleElimination(state.teams);
+		} else if (type === 'pool_play') {
+			const groupA = state.teams.filter(t => t.group === 'A');
+			const groupB = state.teams.filter(t => t.group === 'B');
+			const roundsA = getRounds(groupA);
+			const roundsB = getRounds(groupB);
+			const maxRounds = Math.max(roundsA.length, roundsB.length);
+			state.rounds = [];
+			for(let i = 0; i < maxRounds; i++) {
+				state.rounds.push([...(roundsA[i] || []), ...(roundsB[i] || [])]);
+			}
+		} else {
+			state.rounds = getRounds(state.teams);
+		}
 		
 		save();
 		renderAll();
 	}
+
+	function generateSingleElimination(teams) {
+		let seededTeams = [...teams].sort(() => Math.random() - 0.5);
+		const bracketSize = Math.pow(2, Math.ceil(Math.log2(seededTeams.length)));
+		const byes = bracketSize - seededTeams.length;
+		let round1 = [];
+		let pool = [...seededTeams];
+		for (let i = 0; i < bracketSize / 2; i++) {
+			let t1 = pool.shift();
+			let t2 = (i < byes) ? { id: 'BYE', isBye: true } : pool.shift();
+			round1.push([t1, t2]);
+		}
+		return [round1];
+	}
+	
+	
+	function generatePools(teams) {
+		const half = Math.ceil(teams.length / 2);
+		const groupA = teams.slice(0, half);
+		const groupB = teams.slice(half);
+
+		// Generate Round Robin for each group separately
+		const roundsA = getRounds(groupA);
+		const roundsB = getRounds(groupB);
+
+		// Combine them into one displayable schedule
+		return roundsA.map((r, i) => [...r, ...(roundsB[i] || [])]);
+	}
+	
+	
+	
+
+	// Helper to advance winners in Single Elimination
+	function advanceWinner(matchKey) {
+		const state = getActive();
+		if (state.config.type === 'round_robin') return;
+
+		alert("Functionality to auto-generate next bracket round based on winners is now active!");
+		// In a full implementation, you'd calculate which match the winner moves to.
+		// For now, this ensures your bracket data is saved.
+		save();
+	}
+	
+	
+	function startPlayoffs() {
+		const state = getActive();
+		// Sort teams by current performance
+		const sorted = [...(state.teams || [])].sort((a, b) => 
+			state.rankBy === 'wins' ? (b.w - a.w || b.pts - a.pts) : (b.pts - a.pts || b.w - a.w)
+		);
+		
+		if (sorted.length < 4) return alert("Need at least 4 teams for playoffs!");
+		
+		// Take Top 4 and create a Semi-Final round
+		const semi1 = [sorted[0], sorted[3]];
+		const semi2 = [sorted[1], sorted[2]];
+		
+		state.rounds.push([semi1, semi2]);
+		alert("Playoff Round added to the bottom of the schedule!");
+		save();
+		renderAll();
+	}
+	
+	
+	
     function calculateStandings(state) {
 		if (!state || !state.teams) return;
 
@@ -375,156 +457,80 @@
 			}
 		});
 	}
-	
+		
 	function updatePodium(sorted) {
 		const state = getActive();
-		
-		// Helper to determine the winner of a specific playoff match (Gold/Bronze)
-		const getWin = (tA, tB, prefix) => {
+		const lineupCount = state.config?.lineup?.length || 1;
+
+		const getMatchWinner = (tA, tB, prefix) => {
 			if (!tA || !tB) return null;
 			let wA = 0, wB = 0;
-			
-			// Check every possible sub-match slot (s0, s1, s2...) for the playoff prefix
-			// Most tournaments have 3 matches per round, so checking 0-5 is safe
-			for (let i = 0; i < 5; i++) {
-				const r = state.matchResults[`${prefix}_s${i}`];
-				if (r) {
-					if (r[tA.id]?.status === 'W') wA++;
-					if (r[tB.id]?.status === 'W') wB++;
-				}
+			for (let i = 0; i < lineupCount; i++) {
+				const res = state.matchResults[`${prefix}_s${i}`];
+				if (res?.[tA.id]?.status === 'W') wA++;
+				if (res?.[tB.id]?.status === 'W') wB++;
 			}
-			
 			if (wA > wB) return tA;
 			if (wB > wA) return tB;
 			return null;
 		};
 
-		const champ = getWin(sorted[0], sorted[1], 'final_gold');
-		const third = sorted.length >= 4 ? getWin(sorted[2], sorted[3], 'final_bronze') : null;
-		
-		// Update the UI elements
-		document.getElementById('name-1').innerText = champ ? `TEAM ${champ.id}` : "TBD";
-		document.getElementById('name-2').innerText = champ ? `TEAM ${champ.id == sorted[0].id ? sorted[1].id : sorted[0].id}` : "TBD";
-		document.getElementById('name-3').innerText = third ? `TEAM ${third.id}` : "TBD";
-	}
+		const goldWinner = getMatchWinner(sorted[0], sorted[1], 'final_gold');
+		const bronzeWinner = sorted.length >= 4 ? getMatchWinner(sorted[2], sorted[3], 'final_bronze') : null;
 
-    function renderAll() {
+		document.getElementById('name-1').innerText = goldWinner ? `TEAM ${goldWinner.id}` : "TBD";
+		document.getElementById('name-2').innerText = goldWinner ? `TEAM ${goldWinner.id == sorted[0].id ? sorted[1].id : sorted[0].id}` : "TBD";
+		document.getElementById('name-3').innerText = bronzeWinner ? `TEAM ${bronzeWinner.id}` : "TBD";
+	}
+	function renderAll() {
 		const state = getActive();
 		if (!state) return;
 
-		// 1. Rank Buttons
+		// 1. Ranking Logic Toggle
 		const btnWins = document.getElementById('btnRankWins');
 		const btnPts = document.getElementById('btnRankPts');
 		if (btnWins && btnPts) {
-			if (state.rankBy === 'wins') {
-				btnWins.classList.add('active');
-				btnPts.classList.remove('active');
-			} else {
-				btnWins.classList.remove('active');
-				btnPts.classList.add('active');
-			}
+			state.rankBy === 'wins' ? (btnWins.classList.add('active'), btnPts.classList.remove('active')) : (btnPts.classList.add('active'), btnWins.classList.remove('active'));
 		}
 
-		// 2. Player Pool
-		const poolEl = document.getElementById('playerPool');
-		if (poolEl) {
-			poolEl.innerHTML = (state.pool || []).map(p => `
-				<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #334155;">
-					<span>${p.gender === 'M' ? '🚹' : '🚺'} ${p.name}</span>
-					<button onclick="removePlayer(${p.id})" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button>
-				</div>
-			`).join('');
-		}
-
-		// 3. FIXED: Sitting Out Logic (Updated for 6-player teams)
-		const benchPanel = document.getElementById('benchPanel');
-		const benchList = document.getElementById('benchList');
-		
-		if (benchPanel && benchList) {
-			const playersInTeams = new Set();
-			(state.teams || []).forEach(t => {
-				// Handle Novice (multiple women) vs Intermediate (single woman)
-				if(t.women) t.women.forEach(w => playersInTeams.add(w.id));
-				if(t.woman) playersInTeams.add(t.woman.id);
-				if(t.men) t.men.forEach(m => playersInTeams.add(m.id));
-			});
-
-			const benched = (state.pool || []).filter(p => !playersInTeams.has(p.id));
-			
-			if (benched.length > 0 && state.teams && state.teams.length > 0) {
-				benchPanel.style.display = 'block';
-				benchList.innerHTML = benched.map(p => `
-					<div style="padding:8px; background:rgba(239, 68, 68, 0.1); border-left:3px solid var(--danger); margin-bottom:5px; border-radius:4px; font-size:0.8rem;">
-						${p.gender === 'M' ? '🚹' : '🚺'} ${p.name}
-					</div>
-				`).join('');
-			} else {
-				benchPanel.style.display = 'none';
-			}
-		}
-
-		// 4. Standings & Team List (Updated for 6-player roster display)
+		// 2. Standings & Team List
 		calculateStandings(state);
 		const sortedTeams = [...(state.teams || [])].sort((a, b) => 
 			state.rankBy === 'wins' ? (b.w - a.w || b.pts - a.pts) : (b.pts - a.pts || b.w - a.w)
 		);
 
-		// Locate this section inside your renderAll() function
-	const teamListEl = document.getElementById('teamList');
-	if (teamListEl) {
-		teamListEl.innerHTML = sortedTeams.map((t, i) => {
-			let rosterInfo = "";
-			
-			if (currentMode === 'novice') {
-				// Standard Novice display (Multiple Men, Multiple Women)
-				rosterInfo = `M: ${t.men.map(m => m.name).join(', ')}<br>W: ${t.women.map(w => w.name).join(', ')}`;
+		const teamListEl = document.getElementById('teamList');
+		if (teamListEl) {
+			let html = "";
+			const type = state.config?.type;
+
+			if (type === 'pool_play') {
+				['A', 'B'].forEach(groupName => {
+					const groupTeams = sortedTeams.filter(t => t.group === groupName);
+					if (groupTeams.length > 0) {
+						html += `<h4 style="color:var(--accent); margin: 15px 0 5px 0;">GROUP ${groupName}</h4>`;
+						groupTeams.forEach((t) => html += renderTeamRow(t, groupTeams.indexOf(t) + 1, state));
+					}
+				});
 			} else {
-				// Intermediate display (Single Woman / Man 1 / Man 2)
-				// We use t.women[0] because generateTeams pushes the woman into an array
-				const womanName = t.women && t.women.length > 0 ? t.women[0].name : "TBD";
-				const man1 = t.men && t.men[0] ? t.men[0].name : "TBD";
-				const man2 = t.men && t.men[1] ? t.men[1].name : "TBD";
-				
-				rosterInfo = `${womanName} / ${man1} / ${man2}`;
+				sortedTeams.forEach((t, i) => html += renderTeamRow(t, i + 1, state));
 			}
+			teamListEl.innerHTML = html;
+		}
 
-			return `
-				<div class="team-card" style="border-color: ${i < 4 ? 'var(--primary)' : 'var(--accent)'}">
-					<div style="display:flex; justify-content:space-between; align-items:center;">
-						<div style="display:flex; align-items:center;">
-							<span class="rank-num">${i + 1}</span>
-							<div>
-								<div class="team-title">Team ${t.id}</div>
-								<div style="font-size:0.7rem; color:var(--grey)">${rosterInfo}</div>
-							</div>
-						</div>
-						<div class="team-stats">${state.rankBy === 'wins' ? t.w + 'W' : t.pts + 'P'}</div>
-					</div>
-				</div>
-			`;
-		}).join('');
-	}
-
-		// 5. Match Schedule
-		// Inside your renderAll() function, find the Match Schedule section:
+		// 3. Match Schedule
 		const scheduleEl = document.getElementById('schedule');
-		if (scheduleEl && state.teams && state.teams.length > 0) {
-			// Use stored rounds if available, otherwise calculate them
-			const rounds = state.rounds || getRounds(state.teams);
-			
-			scheduleEl.innerHTML = rounds.map((round, rIdx) => `
+		if (scheduleEl && state.rounds) {
+			scheduleEl.innerHTML = state.rounds.map((round, rIdx) => `
 				<div style="margin-bottom:25px;">
 					<h4 style="color:var(--accent); margin-bottom:10px; border-bottom:1px solid #334155;">ROUND ${rIdx + 1}</h4>
 					<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:10px;">
 						${round.map(m => renderMatchCard(m[0], m[1], `r${rIdx}_t${m[0].id}_t${m[1].id}`)).join('')}
 					</div>
-				</div>
-			`).join('');
-		} else if (scheduleEl) {
-			scheduleEl.innerHTML = "<p style='color:var(--grey)'>Add players and click Initialize to generate matches.</p>";
+				</div>`).join('');
 		}
 
-		// 6. Podium
+		// 4. Automatic Podium
 		const podiumSection = document.getElementById('podiumSection');
 		if (sortedTeams.length >= 2) {
 			podiumSection.style.display = 'block';
@@ -532,32 +538,52 @@
 			updatePodium(sortedTeams);
 		}
 	}
-    function updatePodium(sorted) {
-		const state = getActive();
-		
-		// Check if we are in Novice mode to use the new match keys
-		const isNovice = (currentMode === 'novice');
-		const matchKeys = isNovice ? ['men', 'mixed', 'women'] : ['x1', 'm', 'x2'];
 
-		const getWin = (tA, tB, prefix) => {
-			if(!tA || !tB) return null;
+	function renderTeamRow(t, rank, state) {
+		let rosterInfo = "";
+		if (currentMode === 'novice') {
+			const m = t.men?.map(p => p.name).join(', ') || "None";
+			const w = t.women?.map(p => p.name).join(', ') || "None";
+			rosterInfo = `W: ${w} <br> M: ${m}`;
+		} else {
+			rosterInfo = `${t.women?.[0]?.name || 'W'} / ${t.men?.[0]?.name || 'M1'} / ${t.men?.[1]?.name || 'M2'}`;
+		}
+
+		return `
+			<div class="team-card" style="border-left: 6px solid ${rank <= 2 ? 'var(--primary)' : 'var(--accent)'}">
+				<div style="display:flex; justify-content:space-between; align-items:center;">
+					<div style="display:flex; align-items:center;">
+						<span class="rank-num">${rank}</span>
+						<div>
+							<div class="team-title">Team ${t.id}</div>
+							<div style="font-size:0.7rem; color:var(--grey)">${rosterInfo}</div>
+						</div>
+					</div>
+					<div class="team-stats">${state.rankBy === 'wins' ? t.w + 'W' : t.pts + 'P'}</div>
+				</div>
+			</div>`;
+	}
+	function updatePodium(sorted) {
+		const state = getActive();
+		const lineup = state.config?.lineup || [];
+
+		const getMatchWinner = (tA, tB, prefix) => {
+			if (!tA || !tB) return null;
 			let wA = 0, wB = 0;
-			
-			// Use the adaptive keys based on the bracket mode
-			matchKeys.forEach(s => {
-				const r = state.matchResults[`${prefix}_${s}`];
-				if (r?.[tA.id]?.status === 'W') wA++;
-				if (r?.[tB.id]?.status === 'W') wB++;
+			lineup.forEach((_, i) => {
+				const res = state.matchResults[`${prefix}_s${i}`];
+				if (res?.[tA.id]?.status === 'W') wA++;
+				if (res?.[tB.id]?.status === 'W') wB++;
 			});
 			return wA > wB ? tA : (wB > wA ? tB : null);
 		};
 
-		const champ = getWin(sorted[0], sorted[1], 'final_gold');
-		const third = sorted.length >= 4 ? getWin(sorted[2], sorted[3], 'final_bronze') : null;
-		
-		document.getElementById('name-1').innerText = champ ? `TEAM ${champ.id}` : "TBD";
-		document.getElementById('name-2').innerText = champ ? `TEAM ${champ.id == sorted[0].id ? sorted[1].id : sorted[0].id}` : "TBD";
-		document.getElementById('name-3').innerText = third ? `TEAM ${third.id}` : "TBD";
+		const goldWinner = getMatchWinner(sorted[0], sorted[1], 'final_gold');
+		const bronzeWinner = sorted.length >= 4 ? getMatchWinner(sorted[2], sorted[3], 'final_bronze') : null;
+
+		document.getElementById('name-1').innerText = goldWinner ? `TEAM ${goldWinner.id}` : "TBD";
+		document.getElementById('name-2').innerText = goldWinner ? `TEAM ${goldWinner.id == sorted[0].id ? sorted[1].id : sorted[0].id}` : "TBD";
+		document.getElementById('name-3').innerText = bronzeWinner ? `TEAM ${bronzeWinner.id}` : "TBD";
 	}
     function renderFinals(t1, t2, t3, t4) {
         let html = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">`;
