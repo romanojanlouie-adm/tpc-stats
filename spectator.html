@@ -5,7 +5,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 	
     <meta charset="UTF-8">
-    <title>SMPC - Live Standings</title>
+    <title>TPC - Live Standings</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #92d027; --dark-bg: #0f172a; --panel-bg: #1e293b; --text: #f8fafc; --gold: #ffd700; }
@@ -22,7 +22,7 @@
     </style>
 </head>
 <body>
-    <h1>SMPC LIVE SCORES</h1>
+    <h1>TPC LIVE SCORES</h1>
     <div id="status" class="status-bar">Connecting to Live Feed...</div>
 	
 	<div id="live-courts" style="display: flex; gap: 15px; overflow-x: auto; padding: 10px; margin-bottom: 20px;"></div>
@@ -83,7 +83,7 @@
 			});
         }
 
-        function render(id, categoryData) {
+		function render(id, categoryData) {
 			const container = document.getElementById(id);
 			if (!categoryData || !categoryData.teams || categoryData.teams.length === 0) {
 				container.innerHTML = "No teams active";
@@ -92,17 +92,25 @@
 
 			const isNovice = id.includes('novice');
 
+			// Sort teams based on the rankBy setting (Wins or Points)
 			const sorted = [...categoryData.teams].sort((a, b) => 
 				categoryData.rankBy === 'wins' ? (b.w - a.w || b.pts - a.pts) : (b.pts - a.pts || b.w - a.w)
 			);
 
 			container.innerHTML = sorted.map((t, i) => {
-				// Adaptive roster display: handles Novice (3M/3W) vs Intermediate (2M/1W)
 				let rosterInfo;
-				if (isNovice && t.women) {
-					rosterInfo = `M: ${t.men.map(m => m.name).join(', ')} / W: ${t.women.map(w => w.name).join(', ')}`;
+				
+				// Fix for Novice: Render multiple men and women
+				if (isNovice) {
+					const mNames = t.men ? t.men.map(m => m.name).join(', ') : 'TBD';
+					const wNames = t.women ? t.women.map(w => w.name).join(', ') : 'TBD';
+					rosterInfo = `M: ${mNames} / W: ${wNames}`;
 				} else {
-					rosterInfo = `${t.woman ? t.woman.name : 'TBD'} / ${t.men[0].name} / ${t.men[1].name}`;
+					// Fix for Intermediate: Get first woman from array and first two men
+					const womanName = t.women && t.women.length > 0 ? t.women[0].name : 'TBD';
+					const man1 = t.men && t.men[0] ? t.men[0].name : 'TBD';
+					const man2 = t.men && t.men[1] ? t.men[1].name : 'TBD';
+					rosterInfo = `${womanName} / ${man1} / ${man2}`;
 				}
 
 				return `
@@ -112,7 +120,7 @@
 							<div class="team-name">Team ${t.id}</div>
 							<small style="color:#94a3b8">${rosterInfo}</small>
 						</div>
-						<div class="stat">${categoryData.rankBy === 'wins' ? t.w + 'W' : t.pts + 'pts'}</div>
+						<div class="stat">${categoryData.rankBy === 'wins' ? t.w + 'W' : (t.pts || 0) + 'pts'}</div>
 					</div>
 				`;
 			}).join('');
@@ -134,16 +142,10 @@
 					const t1Id = parts[1].replace('t', '');
 					const t2Id = parts[2].replace('t', '');
 
-					html += `
-						<div style="background: var(--primary); color: var(--dark-bg); padding: 10px; border-radius: 8px; min-width: 150px; font-size: 0.9rem;">
-							<div style="font-weight: 800; border-bottom: 1px solid rgba(0,0,0,0.1);">COURT ${courtNum}</div>
-							<div style="font-weight: 700;">T${t1Id} vs T${t2Id}</div>
-							<small style="text-transform: uppercase; font-size: 0.6rem;">${bracket}</small>
-						</div>
-					`;
+					
 				});
 			});
-			container.innerHTML = html || '<div style="color: var(--grey)">No matches currently on court</div>';
+			
 		}
 		
 		
@@ -154,4 +156,3 @@
     </script>
 </body>
 </html>
-
