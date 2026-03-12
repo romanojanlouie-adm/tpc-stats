@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elite Podium - TPC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #92d027; 
+            --dark-bg: #0f172a; 
+            --panel-bg: rgba(30, 41, 59, 0.7); 
+            --accent: #8b5cf6; 
+            --gold: #ffd700; 
+            --silver: #e2e8f0; 
+            --bronze: #cd7f32; 
+        }
+
+        body { 
+            background: radial-gradient(circle at top right, #1e293b, #0f172a); 
+            color: #f8fafc; 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-container { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 30px; 
+            flex-grow: 1;
+        }
+
+        .bracket-col { 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; /* Pushes podium up and matches down */
+            padding-bottom: 20px;
+        }
+
+        .title { 
+            font-size: 2.5rem; 
+            font-weight: 800; 
+            color: var(--primary); 
+            margin-bottom: 20px; 
+            text-transform: uppercase; 
+            letter-spacing: 4px;
+            text-align: center;
+        }
+
+        /* Taller Podium */
+        .podium-visual { 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-end; 
+            gap: 15px; 
+            margin-bottom: 40px;
+            flex-grow: 1; /* Allows podium to take up available vertical space */
+        }
+
+        .step { text-align: center; flex: 1; }
+        .bar { 
+            color: #000; 
+            font-weight: 800; 
+            border-radius: 12px 12px 4px 4px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 1.8rem; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Shine effect */
+        .bar::after {
+            content: ""; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shine 4s infinite;
+        }
+        @keyframes shine { 100% { left: 200%; } }
+
+        .team-name { font-size: 1.4rem; font-weight: 800; margin-bottom: 15px; text-transform: uppercase; min-height: 40px;}
+
+        .gold .bar { background: linear-gradient(135deg, #ffd700, #b8860b); height: 280px; border: 2px solid rgba(255,215,0,0.5); }
+        .silver .bar { background: linear-gradient(135deg, #e2e8f0, #94a3b8); height: 200px; }
+        .bronze .bar { background: linear-gradient(135deg, #cd7f32, #8b4513); height: 130px; }
+
+        /* Side-by-Side Matches */
+        .match-row { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 15px; 
+            width: 100%; 
+        }
+
+        .match-box { 
+            background: var(--panel-bg); 
+            backdrop-filter: blur(8px);
+            padding: 15px; 
+            border-radius: 15px; 
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .match-box h3 { 
+            margin: 0 0 10px 0; 
+            font-size: 0.75rem; 
+            color: var(--primary); 
+            text-transform: uppercase; 
+            letter-spacing: 1.5px;
+            text-align: center;
+        }
+
+        .score-row { 
+            display: flex; 
+            justify-content: space-between; 
+            background: rgba(15, 23, 42, 0.4); 
+            padding: 6px 10px; 
+            border-radius: 8px; 
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .score-row b { color: var(--primary); }
+        .label { color: #94a3b8; font-size: 0.65rem; }
+
+        .update-flash { animation: flash 1s ease; }
+        @keyframes flash { 0% { color: var(--primary); } 100% { color: inherit; } }
+    </style>
+</head>
+<body>
+
+<div class="main-container">
+    <div class="bracket-col">
+        <div class="title">🏆 NOVICE</div>
+        <div class="podium-visual">
+            <div class="step silver"><div class="team-name" id="novice-name-2">TBD</div><div class="bar">2nd</div></div>
+            <div class="step gold"><div class="team-name" id="novice-name-1" style="color:var(--gold);">TBD</div><div class="bar">1st</div></div>
+            <div class="step bronze"><div class="team-name" id="novice-name-3">TBD</div><div class="bar">3rd</div></div>
+        </div>
+        <div class="match-row">
+            <div class="match-box">
+                <h3>🏆 Gold Match</h3>
+                <div id="novice-scores-gold"></div>
+            </div>
+            <div class="match-box" style="border-color: rgba(205, 127, 50, 0.3);">
+                <h3 style="color: var(--bronze);">🥉 Bronze Match</h3>
+                <div id="novice-scores-bronze"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bracket-col">
+        <div class="title">🏆 INTERMEDIATE</div>
+        <div class="podium-visual">
+            <div class="step silver"><div class="team-name" id="inter-name-2">TBD</div><div class="bar">2nd</div></div>
+            <div class="step gold"><div class="team-name" id="inter-name-1" style="color:var(--gold);">TBD</div><div class="bar">1st</div></div>
+            <div class="step bronze"><div class="team-name" id="inter-name-3">TBD</div><div class="bar">3rd</div></div>
+        </div>
+        <div class="match-row">
+            <div class="match-box">
+                <h3>🏆 Gold Match</h3>
+                <div id="inter-scores-gold"></div>
+            </div>
+            <div class="match-box" style="border-color: rgba(205, 127, 50, 0.3);">
+                <h3 style="color: var(--bronze);">🥉 Bronze Match</h3>
+                <div id="inter-scores-bronze"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBiVPx18NXyoyS40rJeImxHBbEaSuwdTbk",
+        authDomain: "pickleball-da143.firebaseapp.com",
+        databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "pickleball-da143",
+        storageBucket: "pickleball-da143.firebasestorage.app",
+        messagingSenderId: "629340323922",
+        appId: "1:629340323922:web:778cf31541815864f09f8b",
+        measurementId: "G-PE2KGZ08WG"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref('tpc_dual_state');
+
+    db.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+        updateColumn('novice', data.novice, 'novice-name', 'novice-scores-gold', 'novice-scores-bronze');
+        updateColumn('intermediate', data.intermediate, 'inter-name', 'inter-scores-gold', 'inter-scores-bronze');
+    });
+
+    function updateColumn(mode, state, namePrefix, goldScoreId, bronzeScoreId) {
+        if (!state || !state.teams || state.teams.length === 0) return;
+
+        const results = state.matchResults || {};
+        const lineup = state.config?.lineup || ["Match 1"];
+
+        // Sort by rank to identify who SHOULD be in the finals
+        const sorted = [...state.teams].sort((a, b) => 
+            state.rankBy === 'wins' ? (b.w - a.w || b.pts - a.pts) : (b.pts - a.pts || b.w - a.w)
+        );
+
+        // Helper: Calculate who won the Best-of-X series
+        const getWinner = (tA, tB, prefix) => {
+            if(!tA || !tB) return null;
+            let wA = 0, wB = 0;
+            lineup.forEach((_, i) => {
+                const r = results[`${prefix}_s${i}`];
+                if (r && r[tA.id]?.status === 'W') wA++;
+                if (r && r[tB.id]?.status === 'W') wB++;
+            });
+            if (wA > wB) return tA;
+            if (wB > wA) return tB;
+            return null;
+        };
+
+        const champ = getWinner(sorted[0], sorted[1], 'final_gold');
+        const third = sorted.length >= 4 ? getWinner(sorted[2], sorted[3], 'final_bronze') : null;
+
+        // Display Names on Podium
+        document.getElementById(`${namePrefix}-1`).innerText = champ ? `TEAM ${champ.id}` : "TBD";
+        document.getElementById(`${namePrefix}-2`).innerText = champ ? `TEAM ${champ.id == sorted[0].id ? sorted[1].id : sorted[0].id}` : "TBD";
+        document.getElementById(`${namePrefix}-3`).innerText = third ? `TEAM ${third.id}` : "TBD";
+
+        // Render Score Details
+        const renderScoreHtml = (tA, tB, prefix) => {
+            if (!tA || !tB) return `<div class="score-row" style="justify-content:center">QUALIFYING...</div>`;
+            
+            return lineup.map((label, i) => {
+                const res = results[`${prefix}_s${i}`] || {};
+                const p1 = res[tA.id]?.pts ?? "-";
+                const p2 = res[tB.id]?.pts ?? "-";
+                const s1 = res[tA.id]?.status === 'W' ? 'color:var(--primary)' : '';
+                const s2 = res[tB.id]?.status === 'W' ? 'color:var(--primary)' : '';
+
+                return `
+                    <div class="score-row">
+                        <span class="label">${label.toUpperCase()}</span>
+                        <span>
+                            <span style="${s1}">T${tA.id}: <b>${p1}</b></span> 
+                            &nbsp;|&nbsp; 
+                            <span style="${s2}">T${tB.id}: <b>${p2}</b></span>
+                        </span>
+                    </div>`;
+            }).join('');
+        };
+
+        document.getElementById(goldScoreId).innerHTML = renderScoreHtml(sorted[0], sorted[1], 'final_gold');
+        document.getElementById(bronzeScoreId).innerHTML = renderScoreHtml(sorted[2], sorted[3], 'final_bronze');
+    }
+
+</script>
+</body>
+</html>
