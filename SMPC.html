@@ -192,6 +192,7 @@
 </head>
 <body>
 
+
 <audio id="announcementChime" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" preload="auto"></audio>
 <audio id="victoryFanfare" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" preload="auto"></audio>
 
@@ -255,6 +256,22 @@
                 </div>
             </div>			
         </div>
+        <div class="panel">
+            <h3>👥 Team Challenges</h3>
+            <div id="teamChallengeList" style="max-height: 200px; overflow-y: auto; margin-bottom: 10px;"></div>
+            <div style="display: grid; gap: 8px;">
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="teamP1" placeholder="PLAYER 1" style="width:50%; padding:5px; background: #D4C9B0; border-bottom:2px solid #000; outline:none; text-transform: uppercase; font-size: 0.8rem;">
+                    <input type="text" id="teamP2" placeholder="PLAYER 2" style="width:50%; padding:5px; background: #D4C9B0; border-bottom:2px solid #000; outline:none; text-transform: uppercase; font-size: 0.8rem;">
+                </div>
+                <button class="btn btn-accent" onclick="registerTeam()">Register Duo</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button class="btn" style="background: var(--primary-light); font-size: 0.7rem;" onclick="matchmakeTeamChallenge()">New Match</button>
+                    <button class="btn" style="background: var(--loser); font-size: 0.7rem; color: #000;" onclick="changeLosersTeam()">Change Losers</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <div class="main-col">
@@ -292,6 +309,7 @@
 
 <script>
 
+
     const pronunciationGuide = { "MIKKO ROMANO": "BOSS-MIKKO!",
 								 "ARYZ": "R-riss!",
 								 "ALLEY": "Ah-lay"
@@ -301,6 +319,7 @@
     let players = JSON.parse(localStorage.getItem('upb_queue')) || [];
     let stats = JSON.parse(localStorage.getItem('upb_stats')) || []; 
     let history = JSON.parse(localStorage.getItem('upb_history')) || [];
+    let teams = JSON.parse(localStorage.getItem('upb_teams')) || []; // <--- Ensure this is added
     let courts = JSON.parse(localStorage.getItem('upb_courts')) || [
         { id: 1, status: 'empty', players: [], scoreA: 0, scoreB: 0, timeLeft: 900, timerActive: false, matchType: '' }
     ];
@@ -380,40 +399,34 @@
 
     // --- CORE LOGIC ---
 // --- UPDATED CORE LOGIC ---
-	async function addCheckIn() {
-		const input = document.getElementById('playerName');
-		const name = input.value.trim().toUpperCase(); 
-		if (!name) return;
+async function addCheckIn() {
+    const input = document.getElementById('playerName');
+    const name = input.value.trim().toUpperCase(); 
+    if (!name) return;
 
-		// 1. CHECK REMOTE DATABASE FOR EXISTING STATS
-		try {
-			// We look in a global 'SMPC_all_players' node so stats persist across sessions/instances
-			const snapshot = await db.ref('SMPC_all_players/' + name).once('value');
-			const remoteStats = snapshot.val();
+    // --- ANTI-STACKING LOGIC ---
+    // Remove them from the Team Queue if they exist there
+    teams = teams.filter(t => !t.players.some(p => p.name === name));
+    // ---------------------------
 
-			if (remoteStats) {
-				// Update local stats array with the data from the other instance
-				const localIdx = stats.findIndex(s => s.name === name);
-				if (localIdx !== -1) {
-					stats[localIdx] = remoteStats;
-				} else {
-					stats.push(remoteStats);
-				}
-				console.log(`Carried over stats for ${name}`);
-			} else {
-				// New player: Initialize locally if they don't exist
-				getPStats(name);
-			}
-		} catch (err) {
-			console.error("Database sync failed, using local stats only:", err);
-			getPStats(name);
-		}
+    try {
+        const snapshot = await db.ref('SMPC_all_players/' + name).once('value');
+        const remoteStats = snapshot.val();
+        if (remoteStats) {
+            const localIdx = stats.findIndex(s => s.name === name);
+            if (localIdx !== -1) stats[localIdx] = remoteStats;
+            else stats.push(remoteStats);
+        } else {
+            getPStats(name);
+        }
+    } catch (err) {
+        getPStats(name);
+    }
 
-		// 2. PROCEED TO QUEUE
-		players.push({ name, joined: Date.now() });
-		input.value = '';
-		saveAndRender();
-	}
+    players.push({ name, joined: Date.now() });
+    input.value = '';
+    saveAndRender();
+}
 
     function matchmake(type = 'balanced') {
         if (players.length < 4) return announce("Notice. We need four players in the queue.");
@@ -455,13 +468,14 @@
     }
 
     function finishMatch(courtId) {
-        lastSnapshot = JSON.parse(JSON.stringify({ players, stats, history, courts }));
+        lastSnapshot = JSON.parse(JSON.stringify({ players, stats, history, courts, teams })); // Added teams to snapshot
         document.getElementById('undoBtn').style.display = 'block';
 
         const c = courts.find(x => x.id === courtId);
         const sA = parseInt(c.scoreA) || 0;
         const sB = parseInt(c.scoreB) || 0;
         
+        // 1. Process Stats for all 4 players
         c.players.forEach((p, idx) => {
             const ps = getPStats(p.name);
             ps.games++;
@@ -476,9 +490,22 @@
             else { ps.losses++; ps.streak = 0; ps.lastResult = 'loser'; }
             
             ps.lastFive = [won ? 'W' : 'L', ...(ps.lastFive || [])].slice(0, 5);
-            players.push({ name: p.name, joined: Date.now() });
         });
 
+        // 2. Handle Queue Movement (The "Sticky" Part)
+        if (c.matchType === 'Team Challenge') {
+            // Move players back as TEAMS
+            const team1 = { id: Date.now(), players: [c.players[0], c.players[1]], joined: Date.now() };
+            const team2 = { id: Date.now() + 1, players: [c.players[2], c.players[3]], joined: Date.now() };
+            teams.push(team1, team2);
+        } else {
+            // Move players back as INDIVIDUALS
+            c.players.forEach(p => {
+                players.push({ name: p.name, joined: Date.now() });
+            });
+        }
+
+        // 3. Audio & History
         if (sA !== sB) {
             const winners = (sA > sB) ? [c.players[0].name, c.players[1].name] : [c.players[2].name, c.players[3].name];
             announce(`Victory on court ${c.id}! ${winners.join(" and ")} won ${Math.max(sA,sB)} to ${Math.min(sA,sB)}.`, true);
@@ -486,6 +513,7 @@
 
         history.unshift({ desc: `${c.players[0].name}/${c.players[1].name} vs ${c.players[2].name}/${c.players[3].name}`, score: `${sA}-${sB}` });
         c.status = 'empty';
+        c.matchType = ''; // Clear match type
         saveAndRender();
     }
 
@@ -526,9 +554,14 @@
     function executeSub(qIdx) {
         const c = courts.find(x => x.id === currentManageContext.courtId);
         const incoming = players.splice(qIdx, 1)[0];
+        
+        // Remove the incoming player from the team queue just in case
+        teams = teams.filter(t => !t.players.some(p => p.name === incoming.name));
+        
         players.push(c.players[currentManageContext.playerIndex]);
         c.players[currentManageContext.playerIndex] = incoming;
-        closeModal(); saveAndRender();
+        closeModal(); 
+        saveAndRender();
     }
     function executeSwap(tIdx) {
         const c = courts.find(x => x.id === currentManageContext.courtId);
@@ -550,6 +583,7 @@
 		renderQueue(); 
 		renderCourts(); 
 		renderLeaderboard();
+        renderTeams();
 
 const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
 
@@ -560,6 +594,7 @@ const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
 			localStorage.setItem('upb_stats', JSON.stringify(stats));
 			localStorage.setItem('upb_courts', JSON.stringify(courts));
 			localStorage.setItem('upb_history', JSON.stringify(history));
+            localStorage.setItem('upb_teams', JSON.stringify(teams));
 
 			// Save to Firebase (Only once the user stops typing/clicking for 0.5s)
 			if (typeof db !== 'undefined' && db) {
@@ -759,8 +794,171 @@ const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
 
 	const instanceID = getDeviceInstanceID();
 	console.log("Current Device Instance ID:", instanceID);	
-		
+    listenForGlobalCommands();
+    
+    saveAndRender();
 	
+
+    function registerTeam() {
+        const p1 = document.getElementById('teamP1').value.trim().toUpperCase();
+        const p2 = document.getElementById('teamP2').value.trim().toUpperCase();
+        
+        if (!p1 || !p2) return alert("Enter both player names!");
+        if (p1 === p2) return alert("A team needs two different players!");
+
+        // --- ANTI-STACKING LOGIC ---
+        // Remove both players from the normal individual queue
+        players = players.filter(p => p.name !== p1 && p.name !== p2);
+        // Remove them from any other teams they might have been in
+        teams = teams.filter(t => !t.players.some(p => p.name === p1 || p.name === p2));
+        // ---------------------------
+        
+        getPStats(p1); getPStats(p2);
+        
+        teams.push({ 
+            id: Date.now(),
+            players: [{name: p1}, {name: p2}],
+            joined: Date.now()
+        });
+        
+        document.getElementById('teamP1').value = '';
+        document.getElementById('teamP2').value = '';
+        saveAndRender();
+    }
+    // Matchmaking for Teams
+    function matchmakeTeamChallenge() {
+        if (teams.length < 2) return announce("Notice. We need at least two registered teams.");
+        const court = courts.find(c => c.status === 'empty');
+        if (!court) return announce("Notice. All courts are full.");
+
+        const selectedTeams = teams.splice(0, 2);
+        
+        // Combine the two teams into the standard court player array
+        // [Team1P1, Team1P2, Team2P1, Team2P2]
+        court.players = [...selectedTeams[0].players, ...selectedTeams[1].players];
+        court.status = 'playing';
+        court.matchType = 'Team Challenge';
+        court.scoreA = 0; court.scoreB = 0; court.timeLeft = 900;
+        
+        announce(`Team Challenge on Court ${court.id}. ${court.players[0].name} and ${court.players[1].name} versus ${court.players[2].name} and ${court.players[3].name}.`);
+        saveAndRender();
+    }
+
+    // Update your existing renderQueue to include rendering the teams
+    function renderTeams() {
+        const list = document.getElementById('teamChallengeList');
+        list.innerHTML = teams.map((t, i) => `
+            <div class="stat-row" style="padding: 8px;">
+                <div style="font-size: 0.8rem;">
+                    <b>${t.players[0].name} + ${t.players[1].name}</b>
+                </div>
+                <button onclick="teams.splice(${i}, 1); saveAndRender();" style="color:var(--danger); background:none; border:none; cursor:pointer;">✕</button>
+            </div>
+        `).join('');
+    }
+	
+    function changeLosersTeam() {
+        if (teams.length < 1) return announce("Notice. No teams waiting in the duo queue.");
+        const court = courts.find(c => c.matchType === 'Team Challenge');
+        if (!court) return announce("Notice. No active Team Challenge court found.");
+
+        const sA = parseInt(court.scoreA) || 0;
+        const sB = parseInt(court.scoreB) || 0;
+        if (sA === sB) return announce("Notice. Please set a score to determine the loser.");
+
+        const incomingTeam = teams.splice(0, 1)[0];
+        let oldLosers;
+
+        if (sA > sB) {
+            oldLosers = [court.players[2], court.players[3]]; // Team B lost
+            court.players[2] = incomingTeam.players[0];
+            court.players[3] = incomingTeam.players[1];
+        } else {
+            oldLosers = [court.players[0], court.players[1]]; // Team A lost
+            court.players[0] = incomingTeam.players[0];
+            court.players[1] = incomingTeam.players[1];
+        }
+
+        // Push the losing duo back as a TEAM object
+        teams.push({ id: Date.now(), players: oldLosers, joined: Date.now() });
+        
+        court.scoreA = 0;
+        court.scoreB = 0;
+        saveAndRender();
+    }
+
+
+    function listenForGlobalCommands() {
+        if (typeof db !== 'undefined' && db) {
+            // We use .on('value') so it triggers automatically when the Admin changes it
+            db.ref('SYSTEM_COMMANDS/reset').on('value', (snapshot) => {
+                const cmd = snapshot.val();
+                if (!cmd) return;
+
+                // Check if this reset has already been processed by this browser
+                const lastProcessed = localStorage.getItem('last_processed_reset');
+                
+                // Only trigger if the timestamp is newer than the one we remember
+                if (lastProcessed === null || parseInt(lastProcessed) < cmd.timestamp) {
+                    console.warn("🚨 GLOBAL RESET COMMAND RECEIVED");
+                    
+                    // 1. Immediately save this ID to prevent a refresh loop
+                    const resetId = cmd.timestamp.toString();
+                    
+                    // 2. Wipe ALL local memory
+                    localStorage.clear();
+                    
+                    // 3. Re-save ONLY the reset ID so we don't loop on reload
+                    localStorage.setItem('last_processed_reset', resetId);
+                    
+                    // 4. Reset local variables for safety
+                    players = [];
+                    stats = [];
+                    teams = [];
+                    history = [];
+
+                    // 5. Notify and Refresh
+                    alert("Season Reset initiated by Admin. Clearing device data...");
+                    location.reload();
+                }
+            });
+        }
+    }
+
+
+    function listenForInstanceCommands() {
+        if (typeof db !== 'undefined' && db) {
+            // Listen ONLY for commands matching this tablet's specific instanceID
+            db.ref(`SYSTEM_COMMANDS/instances/${instanceID}`).on('value', (snapshot) => {
+                const cmd = snapshot.val();
+                if (!cmd) return;
+
+                // Check if we've already done this (to avoid loops)
+                const lastInstCmd = localStorage.getItem('last_instance_cmd');
+                if (lastInstCmd == cmd.timestamp) return;
+                localStorage.setItem('last_instance_cmd', cmd.timestamp);
+
+                if (cmd.command === 'CLEAR_QUEUE') {
+                    players = [];
+                    announce("Admin has cleared the waiting queue.");
+                } 
+                else if (cmd.command === 'RESET_COURTS') {
+                    courts.forEach(c => {
+                        c.status = 'empty';
+                        c.players = [];
+                        c.timerActive = false;
+                    });
+                    announce("Admin has reset all courts on this device.");
+                }
+
+                saveAndRender();
+            });
+        }
+    }
+
+
+    listenForInstanceCommands();    
+
     saveAndRender();
 </script>
 </body>
