@@ -310,10 +310,7 @@
 <script>
 
 
-    const pronunciationGuide = { "MIKKO ROMANO": "BOSS-MIKKO!",
-								 "ARYZ": "R-riss!",
-								 "ALLEY": "Ah-lay"
-							   };
+    let pronunciationGuide = {};
 
     // --- STATE MANAGEMENT ---
     let players = JSON.parse(localStorage.getItem('upb_queue')) || [];
@@ -339,35 +336,77 @@
 
     // --- ANNOUNCEMENT QUEUE SYSTEM ---
     function announce(text, isVictory = false) {
+        console.log("Queueing announcement:", text);
         announcementQueue.push({ text, isVictory });
+        
+        // If the browser blocked speech, we might need to "resume" it
+        if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+        }
+        
         processQueue();
     }
 
     function processQueue() {
+        // If already speaking, wait for the 'onend' trigger
         if (isSpeaking || announcementQueue.length === 0) return;
+        
         isSpeaking = true;
         const item = announcementQueue.shift();
+        
+        // Play Chime
         const sound = document.getElementById(item.isVictory ? 'victoryFanfare' : 'announcementChime');
-        sound.volume = 0.3;
-        sound.play();
+        if (sound) {
+            sound.volume = 0.3;
+            sound.play().catch(e => console.warn("Audio play blocked until user clicks page."));
+        }
+
+        // Set a safety timeout to reset isSpeaking in case the Speech API fails to fire 'onend'
+        const fallbackTimeout = setTimeout(() => {
+            console.warn("Speech timed out, resetting queue...");
+            isSpeaking = false;
+            processQueue();
+        }, 10000); // 10-second safety limit
 
         setTimeout(() => {
             const speech = new SpeechSynthesisUtterance(item.text);
             const allVoices = window.speechSynthesis.getVoices();
-            const bestVoice = allVoices.find(v => v.name.includes('Zira') || v.name.includes('Samantha')) || allVoices.find(v => v.lang.startsWith('en'));
+            
+            // Find best voice
+            const bestVoice = allVoices.find(v => v.name.includes('Zira') || v.name.includes('Samantha')) || 
+                            allVoices.find(v => v.lang.startsWith('en'));
             if (bestVoice) speech.voice = bestVoice;
+            
             speech.rate = 0.85;
-            speech.onend = () => { isSpeaking = false; processQueue(); };
+            
+            speech.onend = () => {
+                clearTimeout(fallbackTimeout);
+                isSpeaking = false;
+                processQueue();
+            };
+
+            speech.onerror = (e) => {
+                console.error("SpeechSynthesis Error:", e);
+                clearTimeout(fallbackTimeout);
+                isSpeaking = false;
+                processQueue();
+            };
+
             window.speechSynthesis.speak(speech);
         }, 800);
     }
 
-    function announcePlayers(courtId, playerList) {
-        if (!playerList || playerList.length < 4) return;
-        const names = playerList.map(p => pronunciationGuide[p.name] || p.name);
-        announce(`Attention. Court ${courtId}. Team 1: ${names[0]} and ${names[1]}. Team 2: ${names[2]} and ${names[3]}. Please head to court ${courtId}.`);
-    }
-
+function announcePlayers(courtId, playerList) {
+    if (!playerList || playerList.length < 4) return;
+    
+    // Convert names using the guide, default to the original name if not found
+    const names = playerList.map(p => {
+        const upperName = p.name.toUpperCase();
+        return pronunciationGuide[upperName] || p.name;
+    });
+    
+    announce(`Attention. Court ${courtId}. Team 1: ${names[0]} and ${names[1]}. Team 2: ${names[2]} and ${names[3]}. Please head to court ${courtId}.`);
+}
     // --- ANALYTICS & STATS ---
     function getPStats(name) {
 		let s = stats.find(x => x.name === name);
@@ -460,6 +499,7 @@ async function addCheckIn() {
         court.players = [selected[0], selected[3], selected[1], selected[2]];
         court.status = 'playing';
         court.matchType = label;
+        court.startTime = Date.now();
         court.scoreA = 0; court.scoreB = 0; court.timeLeft = 900; 
         court.timerActive = false; 
         
@@ -468,31 +508,48 @@ async function addCheckIn() {
     }
 
     function finishMatch(courtId) {
-        lastSnapshot = JSON.parse(JSON.stringify({ players, stats, history, courts, teams })); // Added teams to snapshot
+        // 0. Snapshot for Undo
+        lastSnapshot = JSON.parse(JSON.stringify({ players, stats, history, courts, teams }));
         document.getElementById('undoBtn').style.display = 'block';
 
         const c = courts.find(x => x.id === courtId);
+        if (!c || c.status !== 'playing') return;
+
         const sA = parseInt(c.scoreA) || 0;
         const sB = parseInt(c.scoreB) || 0;
-        
-        // 1. Process Stats for all 4 players
+
+        // 1. Capture names for History Record
+        const teamA_Names = [c.players[0].name, c.players[1].name];
+        const teamB_Names = [c.players[2].name, c.players[3].name];
+
+        // 2. Process Stats for all 4 players
         c.players.forEach((p, idx) => {
             const ps = getPStats(p.name);
+            const isTeamA = idx < 2; 
+            const won = (isTeamA && sA > sB) || (!isTeamA && sB > sA);
+            
             ps.games++;
-            const teamA = idx < 2;
-            const won = (teamA && sA > sB) || (!teamA && sB > sA);
-            
-            ps.ptsFor += teamA ? sA : sB;
-            ps.ptsAgainst += teamA ? sB : sA;
+            ps.ptsFor += isTeamA ? sA : sB;
+            ps.ptsAgainst += isTeamA ? sB : sA;
 
-            if (sA === sB) { ps.draws++; ps.lastResult = ''; }
-            else if (won) { ps.wins++; ps.streak++; ps.lastResult = 'winner'; }
-            else { ps.losses++; ps.streak = 0; ps.lastResult = 'loser'; }
+            if (sA === sB) { 
+                ps.draws++; 
+                ps.lastResult = ''; 
+            } else if (won) { 
+                ps.wins++; 
+                ps.streak++; 
+                ps.lastResult = 'winner'; 
+            } else { 
+                ps.losses++; 
+                ps.streak = 0; 
+                ps.lastResult = 'loser'; 
+            }
             
-            ps.lastFive = [won ? 'W' : 'L', ...(ps.lastFive || [])].slice(0, 5);
+            const resultChar = (sA === sB) ? 'D' : (won ? 'W' : 'L');
+            ps.lastFive = [resultChar, ...(ps.lastFive || [])].slice(0, 5);
         });
 
-        // 2. Handle Queue Movement (The "Sticky" Part)
+        // 3. Handle Queue Movement (Returning players to queue)
         if (c.matchType === 'Team Challenge') {
             // Move players back as TEAMS
             const team1 = { id: Date.now(), players: [c.players[0], c.players[1]], joined: Date.now() };
@@ -505,15 +562,33 @@ async function addCheckIn() {
             });
         }
 
-        // 3. Audio & History
+        // 4. Create History Entry (Merged for both Tablet UI and Admin Stats)
+        const matchRecord = {
+            desc: `${teamA_Names.join("/")} vs ${teamB_Names.join("/")}`,
+            score: `${sA}-${sB}`,
+            teams: [teamA_Names, teamB_Names],
+            scores: [sA, sB],
+            timestamp: Date.now(),
+            avgWaitTime: c.startTime ? (Date.now() - c.startTime) : 0 
+        };
+        history.unshift(matchRecord);
+
+        // 5. Audio Announcements
         if (sA !== sB) {
-            const winners = (sA > sB) ? [c.players[0].name, c.players[1].name] : [c.players[2].name, c.players[3].name];
+            const winners = (sA > sB) ? teamA_Names : teamB_Names;
             announce(`Victory on court ${c.id}! ${winners.join(" and ")} won ${Math.max(sA,sB)} to ${Math.min(sA,sB)}.`, true);
+        } else {
+            announce(`Match on court ${c.id} finished in a draw.`);
         }
 
-        history.unshift({ desc: `${c.players[0].name}/${c.players[1].name} vs ${c.players[2].name}/${c.players[3].name}`, score: `${sA}-${sB}` });
+        // 6. Reset Court and Save
         c.status = 'empty';
-        c.matchType = ''; // Clear match type
+        c.players = [];
+        c.scoreA = 0;
+        c.scoreB = 0;
+        c.startTime = null; 
+        c.matchType = '';
+
         saveAndRender();
     }
 
@@ -573,49 +648,40 @@ async function addCheckIn() {
 
     // --- RENDER ---
     let saveTimeout;
-   function saveAndRender() {
-		clearTimeout(saveTimeout);
-		
-		// Update the UI immediately so the manager sees changes instantly
-		document.getElementById('queueTotal').innerText = players.length;
-		document.getElementById('activePlayers').innerText = courts.filter(c => c.status === 'playing').length * 4;
-		document.getElementById('playerTotal').innerText = (players.length + courts.filter(c => c.status === 'playing').length * 4);
-		renderQueue(); 
-		renderCourts(); 
-		renderLeaderboard();
-        renderTeams();
+function saveAndRender() {
+    clearTimeout(saveTimeout);
+    
+    // Update local UI
+    document.getElementById('queueTotal').innerText = players.length;
+    document.getElementById('activePlayers').innerText = courts.filter(c => c.status === 'playing').length * 4;
+    document.getElementById('playerTotal').innerText = (players.length + courts.filter(c => c.status === 'playing').length * 4);
+    renderQueue(); 
+    renderCourts(); 
+    renderLeaderboard();
+    renderTeams();
 
-const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
+    saveTimeout = setTimeout(() => {
+        localStorage.setItem('upb_queue', JSON.stringify(players));
+        localStorage.setItem('upb_stats', JSON.stringify(stats));
+        localStorage.setItem('upb_courts', JSON.stringify(courts));
+        localStorage.setItem('upb_history', JSON.stringify(history));
+        localStorage.setItem('upb_teams', JSON.stringify(teams));
 
-	// Delay the heavy saving (LocalStorage and Firebase) by 500ms
-		saveTimeout = setTimeout(() => {
-			// Save to LocalStorage
-			localStorage.setItem('upb_queue', JSON.stringify(players));
-			localStorage.setItem('upb_stats', JSON.stringify(stats));
-			localStorage.setItem('upb_courts', JSON.stringify(courts));
-			localStorage.setItem('upb_history', JSON.stringify(history));
-            localStorage.setItem('upb_teams', JSON.stringify(teams));
+        if (typeof db !== 'undefined' && db) {
+            // CRITICAL: Push history and courts to live_stats so Admin can calculate metrics
+            db.ref('SMPC_live_stats/' + instanceID).update({
+                stats: stats,
+                courts: courts,
+                history: history, // <--- This allows Admin to see matches
+                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            });
 
-			// Save to Firebase (Only once the user stops typing/clicking for 0.5s)
-			if (typeof db !== 'undefined' && db) {
-				db.ref(dbRef).set({
-					stats: stats,
-					history: history,
-					lastUpdated: Date.now()
-				}).then(() => {
-					console.log("Firebase sync successful");
-				}).catch(err => {
-					console.error("Firebase sync failed:", err);
-				});
-			}
-		}, 500);
-		
-	stats.forEach(s => {
-		db.ref('SMPC_all_players/' + s.name).set(s);
-	});		
-		
-		
-	}
+            stats.forEach(s => {
+                db.ref('SMPC_all_players/' + s.name).update(s);
+            });
+        }
+    }, 500);
+}
 
     function renderQueue() {
 		document.getElementById('queueList').innerHTML = players.map((p, i) => {
@@ -794,7 +860,7 @@ const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
 
 	const instanceID = getDeviceInstanceID();
 	console.log("Current Device Instance ID:", instanceID);	
-    listenForGlobalCommands();
+   
     
     saveAndRender();
 	
@@ -838,6 +904,7 @@ const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
         court.players = [...selectedTeams[0].players, ...selectedTeams[1].players];
         court.status = 'playing';
         court.matchType = 'Team Challenge';
+        court.startTime = Date.now();
         court.scoreA = 0; court.scoreB = 0; court.timeLeft = 900;
         
         announce(`Team Challenge on Court ${court.id}. ${court.players[0].name} and ${court.players[1].name} versus ${court.players[2].name} and ${court.players[3].name}.`);
@@ -888,77 +955,109 @@ const dbRef = firebase.database().ref('SMPC_live_stats/' + instanceID);
     }
 
 
-    function listenForGlobalCommands() {
-        if (typeof db !== 'undefined' && db) {
-            // We use .on('value') so it triggers automatically when the Admin changes it
-            db.ref('SYSTEM_COMMANDS/reset').on('value', (snapshot) => {
-                const cmd = snapshot.val();
-                if (!cmd) return;
+// --- UNIFIED GLOBAL COMMAND LISTENER ---
+    function startAdminListeners() {
+        listenForGuideUpdates();
+        if (typeof db === 'undefined' || !db) return;
 
-                // Check if this reset has already been processed by this browser
-                const lastProcessed = localStorage.getItem('last_processed_reset');
+        // 1. Listen for Global Reset
+        db.ref('SYSTEM_COMMANDS/reset').on('value', (snapshot) => {
+            const cmd = snapshot.val();
+            if (!cmd) return;
+            
+            const last = localStorage.getItem('last_processed_reset');
+            if (last === null || parseInt(last) < cmd.timestamp) {
+                // Safely clear: Remove game data but keep the reset marker
+                const resetTime = cmd.timestamp.toString();
+                localStorage.clear(); 
+                localStorage.setItem('last_processed_reset', resetTime);
                 
-                // Only trigger if the timestamp is newer than the one we remember
-                if (lastProcessed === null || parseInt(lastProcessed) < cmd.timestamp) {
-                    console.warn("🚨 GLOBAL RESET COMMAND RECEIVED");
-                    
-                    // 1. Immediately save this ID to prevent a refresh loop
-                    const resetId = cmd.timestamp.toString();
-                    
-                    // 2. Wipe ALL local memory
-                    localStorage.clear();
-                    
-                    // 3. Re-save ONLY the reset ID so we don't loop on reload
-                    localStorage.setItem('last_processed_reset', resetId);
-                    
-                    // 4. Reset local variables for safety
-                    players = [];
-                    stats = [];
-                    teams = [];
-                    history = [];
+                alert("Season Reset initiated. Clearing...");
+                location.reload();
+            }
+        });
 
-                    // 5. Notify and Refresh
-                    alert("Season Reset initiated by Admin. Clearing device data...");
-                    location.reload();
-                }
-            });
-        }
+        // 2. Listen for Global Broadcasts
+        db.ref('SYSTEM_COMMANDS/announcement').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data || !data.text) return;
+
+            const last = localStorage.getItem('last_processed_announcement');
+            if (last != data.timestamp) {
+                localStorage.setItem('last_processed_announcement', data.timestamp);
+                announce(data.text);
+            }
+        });
+
+        // 3. Instance-Specific (The "Doomsbutton" commands)
+        db.ref(`SYSTEM_COMMANDS/instances/${instanceID}`).on('value', (snapshot) => {
+            const cmd = snapshot.val();
+            if (!cmd) return;
+            
+            const last = localStorage.getItem('last_instance_cmd');
+            if (last == cmd.timestamp) return;
+            localStorage.setItem('last_instance_cmd', cmd.timestamp);
+
+            if (cmd.command === 'FORCE_REFRESH') location.reload();
+            if (cmd.command === 'CLEAR_QUEUE') { 
+                players = []; 
+                // Only render locally; don't push back to Firebase 
+                // because the Admin already cleared the DB.
+                renderUIOnly(); 
+                announce("Queue cleared by Admin."); 
+            }
+        });
+
+        // 4. Data Sync (The fix for the race condition)
+        db.ref('PLAYERS_PATH').on('value', (snapshot) => {
+            const newData = snapshot.val();
+            if (!newData) return;
+
+            // Update local state
+            players = Array.isArray(newData) ? newData : Object.values(newData); 
+            
+            // IMPORTANT: Never use saveAndRender() here.
+            // Only update the DOM.
+            renderUIOnly(); 
+        });
     }
 
-
-    function listenForInstanceCommands() {
-        if (typeof db !== 'undefined' && db) {
-            // Listen ONLY for commands matching this tablet's specific instanceID
-            db.ref(`SYSTEM_COMMANDS/instances/${instanceID}`).on('value', (snapshot) => {
-                const cmd = snapshot.val();
-                if (!cmd) return;
-
-                // Check if we've already done this (to avoid loops)
-                const lastInstCmd = localStorage.getItem('last_instance_cmd');
-                if (lastInstCmd == cmd.timestamp) return;
-                localStorage.setItem('last_instance_cmd', cmd.timestamp);
-
-                if (cmd.command === 'CLEAR_QUEUE') {
-                    players = [];
-                    announce("Admin has cleared the waiting queue.");
-                } 
-                else if (cmd.command === 'RESET_COURTS') {
-                    courts.forEach(c => {
-                        c.status = 'empty';
-                        c.players = [];
-                        c.timerActive = false;
-                    });
-                    announce("Admin has reset all courts on this device.");
-                }
-
-                saveAndRender();
-            });
+    function renderUIOnly() {
+            document.getElementById('queueTotal').innerText = players.length;
+            document.getElementById('activePlayers').innerText = courts.filter(c => c.status === 'playing').length * 4;
+            document.getElementById('playerTotal').innerText = (players.length + courts.filter(c => c.status === 'playing').length * 4);
+            renderQueue(); 
+            renderCourts(); 
+            renderLeaderboard();
+            renderTeams();
         }
+    
+    startAdminListeners();
+
+        // This "unlocks" audio and speech on the first touch/click
+    document.addEventListener('click', function() {
+        // Play a silent sound to wake up the audio context
+        const chime = document.getElementById('announcementChime');
+        if (chime) {
+            chime.volume = 0;
+            chime.play().then(() => chime.pause());
+        }
+        
+        // Resume speech context if it was suspended
+        if (window.speechSynthesis.speaking === false) {
+            window.speechSynthesis.cancel();
+        }
+    }, { once: true });
+
+    
+    function listenForGuideUpdates() {
+        db.ref('SYSTEM_SETTINGS/pronunciation_guide').on('value', (snapshot) => {
+            pronunciationGuide = snapshot.val() || {};
+            console.log("Pronunciation guide updated from cloud.");
+        });
     }
 
-
-    listenForInstanceCommands();    
-
+    
     saveAndRender();
 </script>
 </body>
