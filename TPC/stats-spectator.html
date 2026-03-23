@@ -11,21 +11,21 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
        :root { 
-			--primary: #235B47;        /* Logo Green */
+			--primary: #92d027;        /* Logo Green */
 			--primary-light: #3d7a64;  /* Lighter Green for buttons */
 			--logo-cream: #F2E8CF;     /* Logo Background */
-			--dark-bg: #d9cfb8;        /* Muted Vintage Paper */
-			--panel-bg: #f8f3e6;       /* Soft Cream Panel */
-			--text: #1a332a;           /* Deep Forest Green Text */
-			--accent: #4A8C73; 
-			--danger: #A63446; 
-			--grey: #8C7C65; 
+			--dark-bg: #0f172a;        /* Muted Vintage Paper */
+			--panel-bg: #1e293b;       /* Soft Cream Panel */
+			--text: #f8fafc;           /* Deep Forest Green Text */
+			--accent: #3b82f6; 
+			--danger: #ef4444; 
+			--grey: #94a3b8; 
 			--court-surface: #e5ddc8;  /* Subtle court tone */
 			--winner: #22c55e;
 			--loser: #f59e0b;
 			--primary-green: #1b4d3e;
 			--gold-gradient: linear-gradient(90deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
-			--card-bg: #f3f0e0;
+			--card-bg: #0F172A;
 		}
 
         body { 
@@ -216,7 +216,7 @@
 			background-color: var(--card-bg);
 			width: 360px; /* Mobile-friendly width */
 			height: 640px; /* 9:16 Ratio */
-			border: 8px solid var(--primary-green);
+			border: 8px solid var(--winner);
 			border-radius: 25px;
 			padding: 30px;
 			position: relative;
@@ -226,7 +226,7 @@
 			overflow: hidden;
 			box-shadow: 0 20px 40px rgba(0,0,0,0.4);
 			font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-			color: var(--primary-green);
+			color: var(--primary);
 			text-align: center;
 		}
 		
@@ -249,7 +249,7 @@
 		}
 		
 		.stats-container {
-			background: rgba(255,255,255,0.4);
+			
 			backdrop-filter: blur(5px);
 			border: 1px solid var(--primary-green);
 			border-radius: 15px;
@@ -281,12 +281,12 @@
 		.stat-main-lbl { font-size: 12px; letter-spacing: 1px; margin-bottom: 15px; }
 
 		.stat-sub-grid {
-			display: flex;
-			justify-content: space-around;
-			border-top: 1px solid var(--primary-green);
-			padding-top: 15px;
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 15px;
+			margin-top: 20px;
+			width: 100%;
 		}
-		
 		.win-circle {
 			border: 3px solid var(--primary-green);
 			border-radius: 50%;
@@ -299,11 +299,34 @@
 			font-weight: bold;
 			margin-right: 8px;
 		}
-		.stat-sub-box { display: flex; align-items: center; }
-		.stat-sub-val { font-size: 50px; font-weight: bold; }
-		.stat-sub-lbl { font-size: 20px; opacity: 0.7; }
+		.stat-sub-box {
+			display: flex;
+			flex-direction: column; /* Stacks children vertically */
+			align-items: center;    /* Centers the number and label horizontally */
+			justify-content: center;
+			padding: 10px;
+			background: rgba(255, 255, 255, 0.05); /* Adds a subtle backing */
+			border-radius: 12px;
+		}
+
+		/* Optional: Adjust font sizes for better hierarchy */
+		.stat-sub-val {
+			font-size: 60px;
+			font-weight: 800;
+			line-height: 1;
+			color: var(--primary); 
+		}
+
+		.stat-sub-lbl {
+			font-size: 10px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 1px;
+			color: var(--primary-light); /* Uses the lime green for the label */
+			margin-top: 4px;       /* Adds a small gap between number and text */
+		}
 		.card-footer-info { font-size: 0.65rem; color: var(--grey); font-weight: 600; margin-top: 20px; }
-		.footer-app { color: var(--primary); font-weight: 800; text-transform: uppercase; margin-top: 4px; }
+		.footer-app { color: var(--primary-light); font-weight: 800; text-transform: uppercase; margin-top: 4px; }
 
 
 		.download-btn-ui {
@@ -363,7 +386,7 @@
 				<div class="card-watermark"></div>
 
 				<div class="card-branding">
-					<div class="brand-name">TPC</div>
+					<div class="brand-name">The Pickleball Center</div>
 					<div class="brand-session">Official Performance Record</div>
 				</div>
 
@@ -378,8 +401,8 @@
 
 				<div class="stats-container">
 					<div class="stat-main-box">
-						<div id="cardDupr" class="stat-main-val">8.03</div>
-						<div class="stat-main-lbl">ESTIMATED DUPR</div>
+						<div id="cardPrctg" class="stat-main-val">8.03</div> 
+						<div class="stat-main-lbl">WIN RATE</div>
 					</div>
 					
 					<div class="stat-sub-grid">
@@ -392,14 +415,15 @@
 						</div>
 						<div class="stat-sub-box">
 							<div id="cardLoss" class="stat-sub-val">0</div>
-							<div class="stat-sub-lbl">LOSSES</div>
+							<div class="stat-sub-lbl">LOSS</div>
 						</div>
 					</div>
+					
 				</div>
 
 				<div class="card-footer-info">
 					<p>Established 2025</p>
-					<div class="footer-app">SANTA MARIA PICKLEBALL CLUB</div>
+					
 				</div>
 
 				<button id="closeBtn" class="download-btn-ui" onclick="downloadCurrentCard()">
@@ -592,9 +616,11 @@ function refreshStats() {
 // 4. Interaction & Image Generation
 function showPlayerCard(name) {
     const todayData = calculateTodayStats().find(x => x.name === name);
+	const totalGames = todayData.wins + todayData.losses;
+	const winPercentage = totalGames > 0 ? (todayData.wins / totalGames) * 100 : 0;
     if (!todayData) return;
     document.getElementById('cardName').innerText = name;
-    document.getElementById('cardDupr').innerText = getAllTimeDUPR(name);
+    document.getElementById('cardPrctg').innerText = Math.round(winPercentage * 100) / 100 + '%';
     document.getElementById('cardWins').innerText = todayData.wins;
     document.getElementById('cardLoss').innerText = todayData.losses;
     document.getElementById('statCardOverlay').style.display = 'flex';
