@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Pickleball Center - Management System Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+		:root { 
+            --primary: #92d027; 
+            --dark-bg: #0f172a; 
+            --panel-bg: #1e293b;
+            --text: #f8fafc; 
+            --accent: #3b82f6; 
+            --danger: #ef4444; 
+            --grey: #94a3b8; 
+            --winner: #22c55e;
+            --loser: #f59e0b;
+        }
+
+        body { 
+                    background-color: var(--dark-bg); 
+                    background-image: radial-gradient(circle at top right, #1e293b, #0f172a);
+                    color: var(--text); 
+                    margin: 0; padding: 0; line-height: 1.5; min-height: 100vh;
+                }
+
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        .hero-banner {
+            width: 100%; min-height: 80px;
+            display: flex; align-items: flex-end; padding: 25px;
+            position: relative; border-bottom: 4px solid var(--primary);
+        }
+
+        .header-content {
+            position: relative; z-index: 2; display: flex; flex-wrap: wrap; 
+            align-items: center; gap: 15px; width: 100%; max-width: 1800px; margin: 0 auto;
+        }
+        .logo-img { height: 65px; width: 65px; border-radius: 12px; border: 2px solid var(--primary); object-fit: cover; }
+
+        .ultimate-grid { 
+            display: grid; 
+            grid-template-columns: 320px 1fr 300px; 
+            gap: 20px; 
+            max-width: 1800px; 
+            margin: 20px auto; padding: 0 15px;
+        }
+
+        @media (max-width: 1200px) {
+            .ultimate-grid { grid-template-columns: 1fr; } 
+            .side-col { order: 2; }
+            .main-col { order: 1; }
+        }
+
+        .panel { 
+            background: var(--panel-bg); padding: 20px; border-radius: 16px; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); margin-bottom: 20px; 
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .panel h3 { margin-top: 0; color: var(--primary); font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
+
+        #queueList { max-height: 350px; overflow-y: auto; padding-right: 5px; }
+        #queueList::-webkit-scrollbar { width: 5px; }
+        #queueList::-webkit-scrollbar-thumb { background: var(--grey); border-radius: 10px; }
+
+        .court-card { background: #1e293b; border-radius: 24px; padding: 18px; border: 1px solid rgba(255,255,255,0.1); position: relative; }
+        .court-card.active { border: 2px solid var(--primary); box-shadow: 0 0 15px rgba(146, 208, 39, 0.15); }
+        
+        .match-type-badge {
+            position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+            padding: 4px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.5px; z-index: 5;
+        }
+        .match-std { background: var(--accent); color: white; }
+        .match-win { background: var(--winner); color: white; }
+        .match-los { background: var(--loser); color: white; }
+
+        .timer-unit { 
+            display: flex; justify-content: center; align-items: center;
+            gap: 4px; background: #334155; padding: 10px 15px; border-radius: 12px; border: 2px #2D5F4D solid; 
+            color: var(--primary); font-weight: bold; width: fit-content; margin: 15px auto 15px auto;
+        }
+
+        .timer-input { background: transparent; color: black; border: none; font-size: 1.4rem; width: 35px; text-align: center; outline: none; }
+
+        .t-btn-circle {
+            background: #334155; border: none; color: white; border-radius: 50%; 
+            width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center; 
+            justify-content: center; margin-left: 6px; transition: 0.2s;
+        }
+        .t-btn-circle:hover { transform: scale(1.1); background: #475569; }
+        .t-btn-blue { background: var(--accent); }
+        .t-btn-grey { background: #475569; }
+
+        .court-map { 
+            background: var(--dark-bg); 
+            border: 2px solid rgba(255, 255, 255, 0.4); 
+            height: 360px; position: relative; border-radius: 12px; margin: 20px 0; overflow: hidden;
+        }
+        
+        .kitchen { position: absolute; top: 38%; bottom: 38%; left: 0; right: 0; background: var(--primary); border-top: 2px solid white; border-bottom: 2px solid white; z-index: 1; opacity: 0.95; }
+        .mid-line { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: rgba(255,255,255,0.4); z-index: 0; }
+        .net-line { position: absolute; top: 50%; left: 0; right: 0; height: 3px; background: #fff; z-index: 2; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+               
+        .player-label { 
+            position: absolute; width: 40%; text-align: center; color: #fff; font-weight: 700; 
+            font-size: 0.8rem; background: #334155; padding: 12px 6px; border-radius: 10px; 
+            cursor: pointer; transition: 0.2s; border: 2px solid #528B71; z-index: 3;
+            
+        }
+        .player-label:hover { border-color: var(--primary); background: #F5F1E3; }
+        .player-label .swap-icon { font-size: 0.6rem; color: var(--primary-light); display: block; margin-top: 4px; }
+        
+        .pos-top-l { top: 6%; left: 3%; } 
+        .pos-top-r { top: 6%; right: 3%; }
+        .pos-bot-l { bottom: 6%; left: 3%; } 
+        .pos-bot-r { bottom: 6%; right: 3%; }
+
+        .btn { padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.3s; color: white; width: 100%; text-transform: uppercase; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-primary { background: var(--primary); color: #000; }
+        .btn-accent { background: var(--accent); }
+        
+        .score-input { width: 75px; height: 75px; text-align: center; font-size: 2.2rem; font-weight: 800; background: #D4C9B0; border: 2px solid #528B71; border-radius: 16px; color: #528B71; outline: none; }
+
+        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; }
+        .stat-pill { background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 10px; font-size: 0.85rem; }
+		
+		#matchHistory { 
+			font-size: 0.85rem; 
+			color: var(--grey);
+			max-height: 400px; 
+			overflow-y: auto;  
+			padding-right: 5px;
+		}
+
+		#matchHistory::-webkit-scrollbar { width: 5px; }
+		#matchHistory::-webkit-scrollbar-thumb { background: var(--grey); border-radius: 10px; }
+
+        /* MODAL STYLES */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
+            display: none; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-content {
+            background: var(--panel-bg); width: 90%; max-width: 450px;
+            padding: 30px; border-radius: 24px; border: 1px solid var(--primary);
+            box-shadow: 0 0 30px rgba(146, 208, 39, 0.2);
+        }
+        .modal-header { margin-bottom: 20px; text-align: center; }
+        .modal-title { font-size: 1.2rem; font-weight: 700; color: var(--primary); text-transform: uppercase; }
+        .modal-subtitle { color: var(--grey); font-size: 0.85rem; margin-top: 5px; }
+        .modal-body { display: grid; gap: 12px; }
+        .option-list { max-height: 250px; overflow-y: auto; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; }
+        .option-item {
+            padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.05);
+            margin-bottom: 8px; cursor: pointer; transition: 0.2s; border: 1px solid transparent;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .option-item:hover { background: rgba(146, 208, 39, 0.1); border-color: var(--primary); }
+		
+    </style>
+	
+		
+	
+</head>
+<body>
+
+
+<audio id="announcementChime" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" preload="auto"></audio>
+<audio id="victoryFanfare" src="https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3" preload="auto"></audio>
+
+<div id="playerModal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title" id="modalPlayerName">PLAYER NAME</div>
+            <div class="modal-subtitle">Manage Court Participation</div>
+        </div>
+        <div class="modal-body" id="modalMainActions">
+            <button class="btn btn-accent" onclick="showSubOptions()">🔄 SUB OUT (From Queue)</button>
+            <button class="btn btn-primary" onclick="showSwapOptions()">🤝 SWITCH TEAMS (On Court)</button>
+            <button class="btn" style="background: var(--danger)" onclick="closeModal()">CANCEL</button>
+        </div>
+        <div id="modalOptionView" style="display: none;">
+            <div id="modalOptionTitle" style="font-weight: 700; margin-bottom: 10px; font-size: 0.9rem;">SELECT TARGET:</div>
+            <div class="option-list" id="modalOptionList"></div>
+            <button class="btn" style="margin-top: 15px; background: #334155;" onclick="resetModalView()">BACK</button>
+        </div>
+    </div>
+</div>
+
+<div id="qrModal" class="modal-overlay" onclick="this.style.display='none'">
+    <div class="modal-content" style="text-align: center;" onclick="event.stopPropagation()">
+        <h3 id="qrName" style="color: var(--primary); margin-bottom: 20px;">PLAYER NAME</h3>
+        <div id="qrcode" style="display: flex; justify-content: center; padding: 20px; background: white; border-radius: 12px; margin-bottom: 20px;"></div>
+        <button class="btn btn-accent" onclick="document.getElementById('qrModal').style.display='none'">CLOSE</button>
+    </div>
+</div>
+
+<header class="hero-banner">
+    <div class="header-content">
+        <img src="https://lh3.googleusercontent.com/u/0/d/15UICAjTt-zrSmrd2taWCFEokpxiugArg" alt="TPC Logo" class="logo-img">
+        <div>
+            <h1 style="margin:0; font-size: 1.8rem;">THE PICKLEBALL CENTER</h1>
+            <span style="color: var(--primary); font-weight: 600; font-size: 0.9rem;">PICKLEBALL COMING YOUR WAY</span>
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-left: auto; margin-right: 2.5%;">
+			<div class="stat-pill">Players: <strong id="playerTotal">0</strong></div>
+            <div class="stat-pill">On Queue: <strong id="queueTotal">0</strong></div>
+            <div class="stat-pill">On Court: <strong id="activePlayers">0</strong></div>
+			<button class="btn btn-accent" style="width:auto; padding: 8px 18px;" onclick="addCourt()">+ Court</button>
+        </div>
+    </div>
+</header>
+
+<div class="ultimate-grid">
+    <div class="side-col">
+        <div class="panel">
+			<h3>👤 Player Check-In</h3>
+			<input type="text" id="playerName" placeholder="ENTER NAME..." 
+				   onkeypress="if(event.key==='Enter') addCheckIn()" 
+				   style="width:100%; padding:5px; background: #334155; border:none; border-bottom:2px solid #000; border-radius:0; color:black; margin-bottom:12px; margin-right:12px; outline:none; text-transform: uppercase;">
+			<button class="btn btn-primary" onclick="addCheckIn()">Check In</button>
+		</div>
+        <div class="panel">
+            <h3>⏳ Waiting Queue</h3>
+            <div id="queueList"></div>
+            <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 15px;">
+                <button class="btn btn-accent" onclick="matchmake('balanced')">Standard Match</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button class="btn" style="background: #528B71; font-size: 0.7rem;" onclick="matchmake('winners')">Winners vs Winners</button>
+                    <button class="btn" style="background: #528B71; font-size: 0.7rem;" onclick="matchmake('losers')">Losers vs Losers</button>
+                </div>
+            </div>			
+        </div>
+        <div class="panel">
+            <h3>👥 Team Challenges</h3>
+            <div id="teamChallengeList" style="max-height: 200px; overflow-y: auto; margin-bottom: 10px;"></div>
+            <div style="display: grid; gap: 8px;">
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="teamP1" placeholder="PLAYER 1" style="width:50%; padding:5px; background: #334155; border-bottom:2px solid #000; outline:none; text-transform: uppercase; font-size: 0.8rem;">
+                    <input type="text" id="teamP2" placeholder="PLAYER 2" style="width:50%; padding:5px; background: #334155; border-bottom:2px solid #000; outline:none; text-transform: uppercase; font-size: 0.8rem;">
+                </div>
+                <button class="btn btn-accent" onclick="registerTeam()">Register Duo</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button class="btn" style="background: var(--primary); font-size: 0.7rem;" onclick="matchmakeTeamChallenge()">New Match</button>
+                    <button class="btn" style="background: var(--loser); font-size: 0.7rem; color: #000;" onclick="changeLosersTeam()">Change Losers</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="main-col">
+        <div id="courtsContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 25px;"></div>
+    </div>
+
+    <div class="side-col">
+        <div class="panel">
+            <h3>🏆 Leaderboard</h3>
+            <div id="leaderboard"></div>
+        </div>
+        <div class="panel">
+            <h3>📜 Match History</h3>
+            <div id="matchHistory" style="font-size: 0.85rem; color: var(--grey);"></div>
+        </div>
+			<div class="panel">
+				<h3>⚙️ System Controls</h3>
+				<button class="btn" style="margin-bottom: 8px; background: #aec6cf;" onclick="window.open('stats-spectator.html', '_blank')">📊 Spectator Stats View</button>
+				
+				<button id="undoBtn" class="btn" style="margin-bottom: 8px; background: #64748b; display: none;" onclick="undoLastMatch()">↩️ Undo Last Match</button>
+				<button class="btn btn-accent" style="margin-bottom: 8px;" onclick="endDay()">End Day (Export & Backup)</button>
+								
+				<button class="btn" style="margin-bottom: 8px; background: #475569;" 
+						onclick="document.getElementById('statUpload').click()">
+					Recover Stats
+				</button>
+				<input type="file" id="statUpload" style="display:none" onchange="importStats(event)">
+				
+				
+				<button class="btn" style="margin-bottom: 8px; background: #C3B1E1;" onclick="window.location.href='tournament.html'">🏆 Tournament Mode</button>
+			</div>
+        <button class="btn" style="background:transparent; border: 1px solid var(--danger); color: var(--danger);" onclick="resetSystem()">⚠️ Reset System</button>
+    </div>
+</div>
+
+<script>
+
+
+    let pronunciationGuide = {};
+
+    // --- STATE MANAGEMENT ---
+    let players = JSON.parse(localStorage.getItem('upb_queue')) || [];
+    let stats = JSON.parse(localStorage.getItem('upb_stats')) || []; 
+    let history = JSON.parse(localStorage.getItem('upb_history')) || [];
+    let teams = JSON.parse(localStorage.getItem('upb_teams')) || []; // <--- Ensure this is added
+    let courts = JSON.parse(localStorage.getItem('upb_courts')) || [
+        { id: 1, status: 'empty', players: [], scoreA: 0, scoreB: 0, timeLeft: 900, timerActive: false, matchType: '' }
+    ];
+    let lastSnapshot = null;
+    let currentManageContext = null;
+    let announcementQueue = [];
+    let isSpeaking = false;
+
+    // --- SCREEN WAKE LOCK ---
+    let wakeLock = null;
+    const requestWakeLock = async () => {
+        try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } 
+        catch (err) { console.error(`${err.name}, ${err.message}`); }
+    };
+    requestWakeLock();
+    document.addEventListener('visibilitychange', () => { if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock(); });
+
+    // --- ANNOUNCEMENT QUEUE SYSTEM ---
+    function announce(text, isVictory = false) {
+        console.log("Queueing announcement:", text);
+        announcementQueue.push({ text, isVictory });
+        
+        // If the browser blocked speech, we might need to "resume" it
+        if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+        }
+        
+        processQueue();
+    }
+
+    function processQueue() {
+        // If already speaking, wait for the 'onend' trigger
+        if (isSpeaking || announcementQueue.length === 0) return;
+        
+        isSpeaking = true;
+        const item = announcementQueue.shift();
+        
+        // Play Chime
+        const sound = document.getElementById(item.isVictory ? 'victoryFanfare' : 'announcementChime');
+        if (sound) {
+            sound.volume = 0.3;
+            sound.play().catch(e => console.warn("Audio play blocked until user clicks page."));
+        }
+
+        // Set a safety timeout to reset isSpeaking in case the Speech API fails to fire 'onend'
+        const fallbackTimeout = setTimeout(() => {
+            console.warn("Speech timed out, resetting queue...");
+            isSpeaking = false;
+            processQueue();
+        }, 10000); // 10-second safety limit
+
+        setTimeout(() => {
+            const speech = new SpeechSynthesisUtterance(item.text);
+            const allVoices = window.speechSynthesis.getVoices();
+            
+            // Find best voice
+            const bestVoice = allVoices.find(v => v.name.includes('Zira') || v.name.includes('Samantha')) || 
+                            allVoices.find(v => v.lang.startsWith('en'));
+            if (bestVoice) speech.voice = bestVoice;
+            
+            speech.rate = 0.80;
+            
+            speech.onend = () => {
+                clearTimeout(fallbackTimeout);
+                isSpeaking = false;
+                processQueue();
+            };
+
+            speech.onerror = (e) => {
+                console.error("SpeechSynthesis Error:", e);
+                clearTimeout(fallbackTimeout);
+                isSpeaking = false;
+                processQueue();
+            };
+
+            window.speechSynthesis.speak(speech);
+        }, 800);
+    }
+
+function announcePlayers(courtId, playerList) {
+    if (!playerList || playerList.length < 4) return;
+    
+    // Convert names using the guide, default to the original name if not found
+    const names = playerList.map(p => {
+        const upperName = p.name.toUpperCase();
+        return pronunciationGuide[upperName] || p.name;
+    });
+    
+    announce(`Attention. Court ${courtId}. Team 1:, ${names[0]}, and. ${names[1]}, Team 2:, ${names[2]}, and. ${names[3]}, Please head. to court ${courtId}!:`);
+}
+    // --- ANALYTICS & STATS ---
+    function getPStats(name) {
+		let s = stats.find(x => x.name === name);
+		if (!s) {
+			s = { name, wins: 0, losses: 0, draws: 0, games: 0, streak: 0, maxStreak: 0, ptsFor: 0, ptsAgainst: 0, lastFive: [] };
+			stats.push(s);
+		}
+		return s;
+	}
+
+    function getWR(name) {
+        const s = getPStats(name);
+        return s.games === 0 ? 0 : ((s.wins / s.games) * 100).toFixed(1);
+    }
+
+    function getReliability(name) {
+        const s = getPStats(name);
+        return Math.min((s.games / 20) * 100, 100).toFixed(0);
+    }
+
+    function getEstDUPR(name) {
+        const s = getPStats(name);
+        const wr = parseFloat(getWR(name)) / 100;
+        const pd = s.games > 0 ? (s.ptsFor - s.ptsAgainst) / s.games : 0;
+        const base = 2.5 + (wr * 3.0) + (pd * 0.1);
+        const volumeFactor = Math.min(s.games / 20, 1);
+        return (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
+    }
+
+    // --- CORE LOGIC ---
+// --- UPDATED CORE LOGIC ---
+async function addCheckIn() {
+    const input = document.getElementById('playerName');
+    const name = input.value.trim().toUpperCase(); 
+    if (!name) return;
+
+    // --- ANTI-STACKING LOGIC ---
+    // Remove them from the Team Queue if they exist there
+    teams = teams.filter(t => !t.players.some(p => p.name === name));
+    // ---------------------------
+
+    try {
+        const snapshot = await db.ref('TPC_all_players/' + name).once('value');
+        const remoteStats = snapshot.val();
+        if (remoteStats) {
+            const localIdx = stats.findIndex(s => s.name === name);
+            if (localIdx !== -1) stats[localIdx] = remoteStats;
+            else stats.push(remoteStats);
+        } else {
+            getPStats(name);
+        }
+    } catch (err) {
+        getPStats(name);
+    }
+
+    players.push({ name, joined: Date.now() });
+    input.value = '';
+    saveAndRender();
+}
+
+    function matchmake(type = 'balanced') {
+        if (players.length < 4) return announce("Notice. We need four players in the queue.");
+        const court = courts.find(c => c.status === 'empty');
+        if (!court) return announce("Notice. All courts are full.");
+
+        // Wait-Time Priority (anyone waiting > 15 mins)
+        players.sort((a, b) => {
+            const waitA = Date.now() - a.joined;
+            const waitB = Date.now() - b.joined;
+            return (waitA > 900000) ? -1 : 0;
+        });
+
+        let selected = [];
+        let label = (type === 'balanced') ? 'Standard Match' : (type === 'winners' ? 'Winners Match' : 'Losers Match');
+
+        if (type === 'balanced') {
+            selected = players.splice(0, 4);
+        } else {
+            const target = type === 'winners' ? 'winner' : 'loser';
+            const candidates = players.filter(p => getPStats(p.name).lastResult === target);
+            if (candidates.length < 2) return announce(`Notice. Not enough players for priority match.`);
+            candidates.slice(0, 4).forEach(cand => {
+                const idx = players.findIndex(p => p.name === cand.name);
+                if (idx !== -1) selected.push(players.splice(idx, 1)[0]);
+            });
+            while (selected.length < 4 && players.length > 0) selected.push(players.splice(0, 1)[0]);
+        }
+
+        selected.sort((a, b) => getWR(b.name) - getWR(a.name));
+        court.players = [selected[0], selected[3], selected[1], selected[2]];
+        court.status = 'playing';
+        court.matchType = label;
+        court.startTime = Date.now();
+        court.scoreA = 0; court.scoreB = 0; court.timeLeft = 900; 
+        court.timerActive = false; 
+        
+        announcePlayers(court.id, court.players);
+        saveAndRender();
+    }
+
+    function finishMatch(courtId) {
+        // 0. Snapshot for Undo
+        lastSnapshot = JSON.parse(JSON.stringify({ players, stats, history, courts, teams }));
+        document.getElementById('undoBtn').style.display = 'block';
+
+        const c = courts.find(x => x.id === courtId);
+        if (!c || c.status !== 'playing') return;
+
+        const sA = parseInt(c.scoreA) || 0;
+        const sB = parseInt(c.scoreB) || 0;
+
+        // 1. Capture names for History Record
+        const teamA_Names = [c.players[0].name, c.players[1].name];
+        const teamB_Names = [c.players[2].name, c.players[3].name];
+
+        // 2. Process Stats for all 4 players
+        c.players.forEach((p, idx) => {
+            const ps = getPStats(p.name);
+            const isTeamA = idx < 2; 
+            const won = (isTeamA && sA > sB) || (!isTeamA && sB > sA);
+            
+            ps.games++;
+            ps.ptsFor += isTeamA ? sA : sB;
+            ps.ptsAgainst += isTeamA ? sB : sA;
+
+            if (sA === sB) { 
+                ps.draws++; 
+                ps.lastResult = ''; 
+            } else if (won) { 
+                ps.wins++; 
+                ps.streak++; 
+                ps.lastResult = 'winner'; 
+            } else { 
+                ps.losses++; 
+                ps.streak = 0; 
+                ps.lastResult = 'loser'; 
+            }
+            
+            const resultChar = (sA === sB) ? 'D' : (won ? 'W' : 'L');
+            ps.lastFive = [resultChar, ...(ps.lastFive || [])].slice(0, 5);
+        });
+
+        // 3. Handle Queue Movement (Returning players to queue)
+        if (c.matchType === 'Team Challenge') {
+            // Move players back as TEAMS
+            const team1 = { id: Date.now(), players: [c.players[0], c.players[1]], joined: Date.now() };
+            const team2 = { id: Date.now() + 1, players: [c.players[2], c.players[3]], joined: Date.now() };
+            teams.push(team1, team2);
+        } else {
+            // Move players back as INDIVIDUALS
+            c.players.forEach(p => {
+                players.push({ name: p.name, joined: Date.now() });
+            });
+        }
+
+        // 4. Create History Entry (Merged for both Tablet UI and Admin Stats)
+        const matchRecord = {
+            desc: `${teamA_Names.join("/")} vs ${teamB_Names.join("/")}`,
+            score: `${sA}-${sB}`,
+            teams: [teamA_Names, teamB_Names],
+            scores: [sA, sB],
+            timestamp: Date.now(),
+            avgWaitTime: c.startTime ? (Date.now() - c.startTime) : 0 
+        };
+        history.unshift(matchRecord);
+
+        // 5. Audio Announcements
+        if (sA !== sB) {
+            const winners = (sA > sB) ? teamA_Names : teamB_Names;
+            announce(`Victory on court ${c.id}! ${winners.join(" and ")} won ${Math.max(sA,sB)} to ${Math.min(sA,sB)}.`, true);
+        } else {
+            announce(`Match on court ${c.id} finished in a draw.`);
+        }
+
+        // 6. Reset Court and Save
+        c.status = 'empty';
+        c.players = [];
+        c.scoreA = 0;
+        c.scoreB = 0;
+        c.startTime = null; 
+        c.matchType = '';
+
+        saveAndRender();
+    }
+
+    function undoLastMatch() {
+        if (!lastSnapshot) return;
+        players = lastSnapshot.players;
+        stats = lastSnapshot.stats;
+        history = lastSnapshot.history;
+        courts = lastSnapshot.courts;
+        lastSnapshot = null;
+        document.getElementById('undoBtn').style.display = 'none';
+        saveAndRender();
+        announce("Notice. Last match has been undone.");
+    }
+
+    // --- UI HELPERS ---
+    function handlePlayerClick(courtId, playerIndex) {
+        const court = courts.find(c => c.id === courtId);
+        currentManageContext = { courtId, playerIndex, playerName: court.players[playerIndex].name };
+        document.getElementById('modalPlayerName').innerText = currentManageContext.playerName;
+        resetModalView();
+        document.getElementById('playerModal').style.display = 'flex';
+    }
+    function closeModal() { document.getElementById('playerModal').style.display = 'none'; }
+    function resetModalView() { document.getElementById('modalMainActions').style.display = 'grid'; document.getElementById('modalOptionView').style.display = 'none'; }
+    function showSubOptions() {
+        if (players.length === 0) return alert("Queue empty!");
+        document.getElementById('modalMainActions').style.display = 'none';
+        document.getElementById('modalOptionView').style.display = 'block';
+        document.getElementById('modalOptionList').innerHTML = players.map((p, i) => `<div class="option-item" onclick="executeSub(${i})"><span>${p.name}</span><span style="font-size:0.7rem; color:var(--primary);">DUPR ${getEstDUPR(p.name)}</span></div>`).join('');
+    }
+    function showSwapOptions() {
+        const court = courts.find(c => c.id === currentManageContext.courtId);
+        document.getElementById('modalMainActions').style.display = 'none';
+        document.getElementById('modalOptionView').style.display = 'block';
+        document.getElementById('modalOptionList').innerHTML = court.players.map((p, i) => i === currentManageContext.playerIndex ? '' : `<div class="option-item" onclick="executeSwap(${i})"><span>${p.name}</span><span style="font-size:0.7rem; color:var(--accent);">TEAM ${i < 2 ? '1' : '2'}</span></div>`).join('');
+    }
+    function executeSub(qIdx) {
+        const c = courts.find(x => x.id === currentManageContext.courtId);
+        const incoming = players.splice(qIdx, 1)[0];
+        
+        // Remove the incoming player from the team queue just in case
+        teams = teams.filter(t => !t.players.some(p => p.name === incoming.name));
+        
+        players.push(c.players[currentManageContext.playerIndex]);
+        c.players[currentManageContext.playerIndex] = incoming;
+        closeModal(); 
+        saveAndRender();
+    }
+    function executeSwap(tIdx) {
+        const c = courts.find(x => x.id === currentManageContext.courtId);
+        [c.players[currentManageContext.playerIndex], c.players[tIdx]] = [c.players[tIdx], c.players[currentManageContext.playerIndex]];
+        closeModal(); saveAndRender();
+    }
+
+
+
+    // --- RENDER ---
+    let saveTimeout;
+function saveAndRender() {
+    clearTimeout(saveTimeout);
+    
+    // Update local UI
+    document.getElementById('queueTotal').innerText = players.length;
+    document.getElementById('activePlayers').innerText = courts.filter(c => c.status === 'playing').length * 4;
+    document.getElementById('playerTotal').innerText = (players.length + courts.filter(c => c.status === 'playing').length * 4);
+    renderQueue(); 
+    renderCourts(); 
+    renderLeaderboard();
+    renderTeams();
+
+    saveTimeout = setTimeout(() => {
+        localStorage.setItem('upb_queue', JSON.stringify(players));
+        localStorage.setItem('upb_stats', JSON.stringify(stats));
+        localStorage.setItem('upb_courts', JSON.stringify(courts));
+        localStorage.setItem('upb_history', JSON.stringify(history));
+        localStorage.setItem('upb_teams', JSON.stringify(teams));
+
+        if (typeof db !== 'undefined' && db) {
+            // CRITICAL: Push history and courts to live_stats so Admin can calculate metrics
+            db.ref('TPC_live_stats/' + instanceID).update({
+                stats: stats,
+                courts: courts,
+                history: history, // <--- This allows Admin to see matches
+                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            stats.forEach(s => {
+                db.ref('TPC_all_players/' + s.name).update(s);
+            });
+        }
+    }, 500);
+}
+
+    function renderQueue() {
+		document.getElementById('queueList').innerHTML = players.map((p, i) => {
+			const rel = getReliability(p.name);
+			return `
+			<div class="stat-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+				<div style="display:flex; justify-content:space-between; width:100%;">
+					<b>${p.name}</b>
+					<button onclick="players.splice(${i}, 1); saveAndRender();" style="color:var(--danger); background:none; border:none; cursor:pointer;">✕</button>
+				</div>
+				<div style="font-size: 0.75rem; color: var(--primary);">EST DUPR: ${getEstDUPR(p.name)}</div>
+				<div style="font-size: 0.7rem; color: var(--grey); width: 100%;">
+					Wait: ${Math.floor((Date.now() - p.joined)/60000)}m | Rel: ${rel}%
+					<div style="width: 100%; background: grey; height: 3px; border-radius: 2px; margin-top: 2px;">
+						<div style="width: ${rel}%; background: var(--winner); height: 100%;"></div>
+					</div>
+				</div>
+			</div>`;
+		}).join('');
+	}
+
+    function renderCourts() {
+        const container = document.getElementById('courtsContainer');
+        container.innerHTML = courts.map(c => {
+            let badgeClass = c.matchType === 'Winners Match' ? 'match-win' : (c.matchType === 'Losers Match' ? 'match-los' : 'match-std');
+            return `
+            <div class="court-card ${c.status === 'playing' ? 'active' : ''}">
+                ${c.status === 'playing' ? `<div class="match-type-badge ${badgeClass}">${c.matchType}</div>` : ''}
+                <div style="display:flex; justify-content:space-between; align-items:center">
+                    <span style="font-weight:800; color:var(--grey)">COURT ${c.id}</span>
+                    <button onclick="removeCourt(${c.id})" style="border:none; background:none; cursor:pointer; color:var(--danger)">✕</button>
+                </div>
+                ${c.status === 'playing' ? `
+                    <div class="timer-unit" id="timer-box-${c.id}">
+						<input type="number" class="timer-input" value="${Math.floor(c.timeLeft/60)}" onchange="updateTime(${c.id}, 'm', this.value)">
+						<span>:</span>
+						<input type="number" class="timer-input" value="${(c.timeLeft%60).toString().padStart(2,'0')}" onchange="updateTime(${c.id}, 's', this.value)">
+						<button class="t-btn-circle" onclick="toggleT(${c.id})">${c.timerActive?'⏸':'▶'}</button>
+						<button class="t-btn-circle t-btn-grey" onclick="resetTimer(${c.id})">↺</button>
+						<button class="t-btn-circle t-btn-blue" onclick="announcePlayers(${c.id}, courts.find(x=>x.id===${c.id}).players)">📢</button>
+					</div>
+                    <div class="court-map">
+                        <div class="kitchen"></div><div class="mid-line"></div><div class="net-line"></div>
+                        <div class="player-label pos-top-l" onclick="handlePlayerClick(${c.id}, 0)">${c.players[0].name}<span class="swap-icon">🔄 MANAGE</span></div>
+                        <div class="player-label pos-top-r" onclick="handlePlayerClick(${c.id}, 1)">${c.players[1].name}<span class="swap-icon">🔄 MANAGE</span></div>
+                        <div class="player-label pos-bot-l" onclick="handlePlayerClick(${c.id}, 2)">${c.players[2].name}<span class="swap-icon">🔄 MANAGE</span></div>
+                        <div class="player-label pos-bot-r" onclick="handlePlayerClick(${c.id}, 3)">${c.players[3].name}<span class="swap-icon">🔄 MANAGE</span></div>
+                    </div>
+                    <div style="display:flex; justify-content:center; align-items:center; gap:15px; margin:15px 0">
+                        <input type="number" class="score-input" value="${c.scoreA}" oninput="courts.find(x=>x.id===${c.id}).scoreA=this.value">
+                        <b>VS</b>
+                        <input type="number" class="score-input" value="${c.scoreB}" oninput="courts.find(x=>x.id===${c.id}).scoreB=this.value">
+                    </div>
+                    <button class="btn btn-primary" onclick="finishMatch(${c.id})">Finish Match</button>
+                ` : `<div style="height:380px; display:flex; align-items:center; justify-content:center; color:#334155; border:2px dashed #334155; border-radius:24px">VACANT</div>`}
+            </div>
+        `}).join('');
+    }
+
+    function renderLeaderboard() {
+		const sorted = [...stats].sort((a,b) => parseFloat(getEstDUPR(b.name)) - parseFloat(getEstDUPR(a.name))).slice(0,10);
+		document.getElementById('leaderboard').innerHTML = sorted.map((s, i) => `
+			<div class="stat-row" style="flex-direction: column; align-items: flex-start; padding: 10px;">
+				<div style="display:flex; justify-content:space-between; width:100%; margin-bottom: 5px;">
+					<span><strong># ${i+1}. ${s.name}</strong> <small style="color:var(--grey)">(${s.games} Games)</small></span>
+					<b style="color:var(--primary)">${getEstDUPR(s.name)}</b>
+				</div>
+                <div style="font-size: 0.65rem; color: var(--grey); margin-bottom: 4px;">
+                    Streak: ${s.lastFive ? s.lastFive.slice().reverse().map(f => `<span style="color:${f==='W'? 'var(--winner)':'var(--danger)'}">${f}</span>`).join(' ') : 'N/A'}
+                </div>
+				<div style="width: 100%; font-size: 0.7rem; color: var(--grey);">
+					Reliability: ${getReliability(s.name)}%
+					<div style="width: 100%; background: grey; height: 4px; border-radius: 10px; margin-top: 2px; overflow:hidden;">
+						<div style="width: ${getReliability(s.name)}%; background: var(--winner); height: 100%;"></div>
+					</div>
+				</div>
+			</div>`).join('');
+		
+		document.getElementById('matchHistory').innerHTML = history.slice(0,5).map(h => `
+			<div style="padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05)">${h.desc} <b style="float:right">${h.score}</b></div>`).join('');
+	}
+
+    function toggleT(id) { const c = courts.find(x=>x.id===id); c.timerActive = !c.timerActive; saveAndRender(); }
+    function resetTimer(id) { const c = courts.find(x=>x.id===id); c.timeLeft = 900; c.timerActive = false; saveAndRender(); }
+    function updateTime(id, part, val) {
+        const c = courts.find(x=>x.id===id);
+        let m = Math.floor(c.timeLeft/60), s = c.timeLeft%60;
+        if(part==='m') m = parseInt(val) || 0; else s = parseInt(val) || 0;
+        c.timeLeft = (m*60)+s;
+    }
+    function addCourt() { courts.push({ id: courts.length+1, status:'empty', players:[], scoreA:0, scoreB:0, timeLeft:900, timerActive:false, matchType:'' }); saveAndRender(); }
+    function removeCourt(id) { if(confirm("Delete Court?")) { courts = courts.filter(c=>c.id!==id); saveAndRender(); } }
+    function resetSystem() { if(confirm("Reset Everything?")) { localStorage.clear(); location.reload(); } }
+
+    setInterval(() => {
+        courts.forEach(c => {
+            if(c.timerActive && c.timeLeft > 0) {
+                c.timeLeft--;
+                if(c.timeLeft === 60) announce(`Notice. Court ${c.id} has one minute left.`);
+                if(c.timeLeft === 0) { announce(`Attention. Time is up on court ${c.id}!`); c.timerActive = false; saveAndRender(); }
+                const box = document.getElementById(`timer-box-${c.id}`);
+                if(box) {
+                    const ins = box.querySelectorAll('input');
+                    ins[0].value = Math.floor(c.timeLeft/60);
+                    ins[1].value = (c.timeLeft%60).toString().padStart(2,'0');
+                }
+            }
+        });
+    }, 1000);
+
+    function endDay() {
+        if (!confirm("End session? Matches and Stats will be archived and cleared.")) return;
+        
+        const now = new Date();
+        const dateStr = now.toLocaleDateString();
+        const isoDate = now.toISOString().split('T')[0]; // Format: 2024-03-22
+        const timestamp = Date.now();
+
+        // 1. GENERATE CSV EXPORT
+        let csvHeader = "Type,Name,Wins,Losses,Games_Played,Win_Rate,Current_Streak,EST_DUPR\n";
+        let csvRows = stats.map(s => {
+            const games = s.games || 0;
+            const w = s.wins || 0;
+            const l = s.losses || 0;
+            const wr = games === 0 ? "0%" : ((w / games) * 100).toFixed(1) + "%";
+            const streak = s.streak || 0;
+            return `Stat,${s.name},${w},${l},${games},${wr},${streak},${getEstDUPR(s.name)}`;
+        }).join("\n");
+        
+        let csvContent = "data:text/csv;charset=utf-8," + csvHeader + csvRows;
+        triggerDownload(encodeURI(csvContent), `SMPC_Report_${isoDate}.csv`);
+
+        // 2. ARCHIVE TO FIREBASE (For Daily/Weekly/Monthly Metrics)
+        if (db) {
+            const archiveData = {
+                date: isoDate,
+                timestamp: timestamp,
+                sessionStats: stats,
+                totalMatches: history.length
+            };
+
+            // Saves to a historical node so admin.html can calculate trends
+            const todayKey = new Date().toISOString().split('T')[0];
+
+            db.ref('Historical_Metrics/' + isoDate).set(archiveData)
+                .then(() => console.log("Session archived to Historical_Metrics"))
+                .catch(err => console.error("Archive failed:", err));
+                
+            // Clear live session stats from Firebase
+            db.ref('TPC_live_stats/' + (typeof instanceID !== 'undefined' ? instanceID : 'default')).remove();
+        }
+
+        // 3. DOWNLOAD JSON BACKUP
+        const jsonData = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(stats));
+        triggerDownload(jsonData, `SMPC_Backup_${isoDate}.json`);
+
+        // 4. RESET LOCAL STATE
+        players = [];      
+        history = [];      
+        
+        // Clear courts
+        if (typeof courts !== 'undefined') {
+            courts.forEach(c => {
+                c.status = 'empty';
+                c.players = [];
+                c.scoreA = 0;
+                c.scoreB = 0;
+                c.timerActive = false;
+            });
+        }
+
+        saveAndRender(); 
+        announce("Notice. The session has ended. All performance data has been archived.");
+    }
+    function triggerDownload(uri, fileName) {
+        const link = document.createElement("a");
+        link.setAttribute("href", uri); link.setAttribute("download", fileName);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
+    function importStats(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try { stats = JSON.parse(e.target.result); localStorage.setItem('upb_stats', JSON.stringify(stats)); alert("Success!"); saveAndRender(); } 
+            catch { alert("Error reading file."); }
+        };
+        reader.readAsText(file);
+    }
+	
+	const firebaseConfig = {
+		databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app",
+	  };
+	  firebase.initializeApp(firebaseConfig);
+	  const db = firebase.database();
+	  
+	function getDeviceInstanceID() {
+		let instanceID = localStorage.getItem('tpc_instance_id');
+		
+		if (!instanceID) {
+			// Generate a random 8-character ID (e.g., "ct-x9a2b")
+			instanceID = 'inst-' + Math.random().toString(36).substr(2, 8);
+			localStorage.setItem('tpc_instance_id', instanceID);
+		}
+		
+		return instanceID;
+	}
+
+	const instanceID = getDeviceInstanceID();
+	console.log("Current Device Instance ID:", instanceID);	
+   
+    
+    saveAndRender();
+	
+
+    function registerTeam() {
+        const p1 = document.getElementById('teamP1').value.trim().toUpperCase();
+        const p2 = document.getElementById('teamP2').value.trim().toUpperCase();
+        
+        if (!p1 || !p2) return alert("Enter both player names!");
+        if (p1 === p2) return alert("A team needs two different players!");
+
+        // --- ANTI-STACKING LOGIC ---
+        // Remove both players from the normal individual queue
+        players = players.filter(p => p.name !== p1 && p.name !== p2);
+        // Remove them from any other teams they might have been in
+        teams = teams.filter(t => !t.players.some(p => p.name === p1 || p.name === p2));
+        // ---------------------------
+        
+        getPStats(p1); getPStats(p2);
+        
+        teams.push({ 
+            id: Date.now(),
+            players: [{name: p1}, {name: p2}],
+            joined: Date.now()
+        });
+        
+        document.getElementById('teamP1').value = '';
+        document.getElementById('teamP2').value = '';
+        saveAndRender();
+    }
+    // Matchmaking for Teams
+    function matchmakeTeamChallenge() {
+        if (teams.length < 2) return announce("Notice. We need at least two registered teams.");
+        const court = courts.find(c => c.status === 'empty');
+        if (!court) return announce("Notice. All courts are full.");
+
+        const selectedTeams = teams.splice(0, 2);
+        
+        // Combine the two teams into the standard court player array
+        // [Team1P1, Team1P2, Team2P1, Team2P2]
+        court.players = [...selectedTeams[0].players, ...selectedTeams[1].players];
+        court.status = 'playing';
+        court.matchType = 'Team Challenge';
+        court.startTime = Date.now();
+        court.scoreA = 0; court.scoreB = 0; court.timeLeft = 900;
+        
+        announce(`Team Challenge on Court ${court.id}. ${court.players[0].name} and ${court.players[1].name} versus ${court.players[2].name} and ${court.players[3].name}.`);
+        saveAndRender();
+    }
+
+    // Update your existing renderQueue to include rendering the teams
+    function renderTeams() {
+        const list = document.getElementById('teamChallengeList');
+        list.innerHTML = teams.map((t, i) => `
+            <div class="stat-row" style="padding: 8px;">
+                <div style="font-size: 0.8rem;">
+                    <b>${t.players[0].name} + ${t.players[1].name}</b>
+                </div>
+                <button onclick="teams.splice(${i}, 1); saveAndRender();" style="color:var(--danger); background:none; border:none; cursor:pointer;">✕</button>
+            </div>
+        `).join('');
+    }
+	
+    function changeLosersTeam() {
+        if (teams.length < 1) return announce("Notice. No teams waiting in the duo queue.");
+        const court = courts.find(c => c.matchType === 'Team Challenge');
+        if (!court) return announce("Notice. No active Team Challenge court found.");
+
+        const sA = parseInt(court.scoreA) || 0;
+        const sB = parseInt(court.scoreB) || 0;
+        if (sA === sB) return announce("Notice. Please set a score to determine the loser.");
+
+        const incomingTeam = teams.splice(0, 1)[0];
+        let oldLosers;
+
+        if (sA > sB) {
+            oldLosers = [court.players[2], court.players[3]]; // Team B lost
+            court.players[2] = incomingTeam.players[0];
+            court.players[3] = incomingTeam.players[1];
+        } else {
+            oldLosers = [court.players[0], court.players[1]]; // Team A lost
+            court.players[0] = incomingTeam.players[0];
+            court.players[1] = incomingTeam.players[1];
+        }
+
+        // Push the losing duo back as a TEAM object
+        teams.push({ id: Date.now(), players: oldLosers, joined: Date.now() });
+        
+        court.scoreA = 0;
+        court.scoreB = 0;
+        saveAndRender();
+    }
+
+
+// --- UNIFIED GLOBAL COMMAND LISTENER ---
+    function startAdminListeners() {
+        listenForGuideUpdates();
+        if (typeof db === 'undefined' || !db) return;
+
+        // 1. Listen for Global Reset
+        db.ref('SYSTEM_COMMANDS/reset').on('value', (snapshot) => {
+            const cmd = snapshot.val();
+            if (!cmd) return;
+            
+            const last = localStorage.getItem('last_processed_reset');
+            if (last === null || parseInt(last) < cmd.timestamp) {
+                // Safely clear: Remove game data but keep the reset marker
+                const resetTime = cmd.timestamp.toString();
+                localStorage.clear(); 
+                localStorage.setItem('last_processed_reset', resetTime);
+                
+                alert("Season Reset initiated. Clearing...");
+                location.reload();
+            }
+        });
+
+        // 2. Listen for Global Broadcasts
+        db.ref('SYSTEM_COMMANDS/announcement').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data || !data.text) return;
+
+            const last = localStorage.getItem('last_processed_announcement');
+            if (last != data.timestamp) {
+                localStorage.setItem('last_processed_announcement', data.timestamp);
+                announce(data.text);
+            }
+        });
+
+        // 3. Instance-Specific (The "Doomsbutton" commands)
+        db.ref(`SYSTEM_COMMANDS/instances/${instanceID}`).on('value', (snapshot) => {
+            const cmd = snapshot.val();
+            if (!cmd) return;
+            
+            const last = localStorage.getItem('last_instance_cmd');
+            if (last == cmd.timestamp) return;
+            localStorage.setItem('last_instance_cmd', cmd.timestamp);
+
+            if (cmd.command === 'FORCE_REFRESH') location.reload();
+            if (cmd.command === 'CLEAR_QUEUE') { 
+                players = []; 
+                // Only render locally; don't push back to Firebase 
+                // because the Admin already cleared the DB.
+                renderUIOnly(); 
+                announce("Queue cleared by Admin."); 
+            }
+        });
+
+        // 4. Data Sync (The fix for the race condition)
+        db.ref('PLAYERS_PATH').on('value', (snapshot) => {
+            const newData = snapshot.val();
+            if (!newData) return;
+
+            // Update local state
+            players = Array.isArray(newData) ? newData : Object.values(newData); 
+            
+            // IMPORTANT: Never use saveAndRender() here.
+            // Only update the DOM.
+            renderUIOnly(); 
+        });
+    }
+
+    function renderUIOnly() {
+            document.getElementById('queueTotal').innerText = players.length;
+            document.getElementById('activePlayers').innerText = courts.filter(c => c.status === 'playing').length * 4;
+            document.getElementById('playerTotal').innerText = (players.length + courts.filter(c => c.status === 'playing').length * 4);
+            renderQueue(); 
+            renderCourts(); 
+            renderLeaderboard();
+            renderTeams();
+        }
+    
+    startAdminListeners();
+
+        // This "unlocks" audio and speech on the first touch/click
+    document.addEventListener('click', function() {
+        // Play a silent sound to wake up the audio context
+        const chime = document.getElementById('announcementChime');
+        if (chime) {
+            chime.volume = 0;
+            chime.play().then(() => chime.pause());
+        }
+        
+        // Resume speech context if it was suspended
+        if (window.speechSynthesis.speaking === false) {
+            window.speechSynthesis.cancel();
+        }
+    }, { once: true });
+
+    
+    function listenForGuideUpdates() {
+        db.ref('SYSTEM_SETTINGS/pronunciation_guide').on('value', (snapshot) => {
+            pronunciationGuide = snapshot.val() || {};
+            console.log("Pronunciation guide updated from cloud.");
+        });
+    }
+
+    
+    saveAndRender();
+</script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+	
+    <meta charset="UTF-8">
+    <title>Live Standings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #92d027; --dark-bg: #0f172a; --panel-bg: #1e293b; --text: #f8fafc; --gold: #ffd700; }
+        body { background: var(--dark-bg); color: white; font-family: 'Plus Jakarta Sans'; padding: 20px; text-align: center; }
+        .status-bar { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; margin-bottom: 20px; font-size: 0.8rem; color: var(--primary); }
+        .spectator-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .bracket-col { background: var(--panel-bg); padding: 20px; border-radius: 15px; border: 1px solid rgba(146, 208, 39, 0.3); }
+        h1 { color: var(--primary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; }
+        .team-card { display: flex; align-items: center; background: rgba(255,255,255,0.05); margin: 10px 0; padding: 15px; border-radius: 12px; text-align: left; }
+        .rank { font-size: 1.5rem; font-weight: 800; color: var(--primary); margin-right: 15px; width: 30px; }
+        .team-info { flex-grow: 1; }
+        .team-name { font-weight: 700; font-size: 1.1rem; }
+        .stat { font-weight: 800; background: var(--primary); color: var(--dark-bg); padding: 4px 10px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <h1>LIVE SCORES</h1>
+    <div id="status" class="status-bar">Connecting to Live Feed...</div>
+	
+	<div id="live-courts" style="display: flex; gap: 15px; overflow-x: auto; padding: 10px; margin-bottom: 20px;"></div>
+	
+    <div class="spectator-grid">
+        <div class="bracket-col">
+            <h2 style="color:var(--primary)">NOVICE</h2>
+            <div id="list-novice">Waiting for data...</div>
+        </div>
+        <div class="bracket-col">
+            <h2 style="color:var(--primary)">INTERMEDIATE</h2>
+            <div id="list-intermediate">Waiting for data...</div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBiVPx18NXyoyS40rJeImxHBbEaSuwdTbk",
+            authDomain: "pickleball-da143.firebaseapp.com",
+            databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "pickleball-da143",
+            storageBucket: "pickleball-da143.firebasestorage.app",
+            messagingSenderId: "629340323922",
+            appId: "1:629340323922:web:778cf31541815864f09f8b",
+            measurementId: "G-PE2KGZ08WG"
+        };
+
+        function init() {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            const db = firebase.database().ref('tpc_dual_state');
+            const statusEl = document.getElementById('status');
+
+            // 1. Connection Monitor
+            firebase.database().ref(".info/connected").on("value", (snap) => {
+                if (snap.val() === true) {
+                    statusEl.innerText = "● LIVE: Syncing with Admin";
+                    statusEl.style.color = "#92d027";
+                } else {
+                    statusEl.innerText = "○ Offline: Reconnecting...";
+                    statusEl.style.color = "#ef4444";
+                }
+            });
+
+            // 2. Real-time Listener
+            db.on('value', (snapshot) => {
+				const data = snapshot.val();
+				if (data) {
+					// You must call renderLiveMatches here!
+					renderLiveMatches(data); 
+					render('list-novice', data.novice);
+					render('list-intermediate', data.intermediate);
+				}
+			}, (error) => {
+				console.error("Firebase Error:", error);
+				statusEl.innerText = "Error: Check Database Rules";
+			});
+        }
+
+		function render(id, categoryData) {
+			const container = document.getElementById(id);
+			if (!categoryData || !categoryData.teams || categoryData.teams.length === 0) {
+				container.innerHTML = "No teams active";
+				return;
+			}
+
+			const isNovice = id.includes('novice');
+
+			// Sort teams based on the rankBy setting (Wins or Points)
+			const sorted = [...categoryData.teams].sort((a, b) => 
+				categoryData.rankBy === 'wins' ? (b.w - a.w || b.pts - a.pts) : (b.pts - a.pts || b.w - a.w)
+			);
+
+			container.innerHTML = sorted.map((t, i) => {
+				let rosterInfo;
+				
+				// Fix for Novice: Render multiple men and women
+				if (isNovice) {
+					const mNames = t.men ? t.men.map(m => m.name).join(', ') : 'TBD';
+					const wNames = t.women ? t.women.map(w => w.name).join(', ') : 'TBD';
+					rosterInfo = `M: ${mNames} / W: ${wNames}`;
+				} else {
+					// Fix for Intermediate: Get first woman from array and first two men
+					const womanName = t.women && t.women.length > 0 ? t.women[0].name : 'TBD';
+					const man1 = t.men && t.men[0] ? t.men[0].name : 'TBD';
+					const man2 = t.men && t.men[1] ? t.men[1].name : 'TBD';
+					rosterInfo = `${womanName} / ${man1} / ${man2}`;
+				}
+
+				return `
+					<div class="team-card">
+						<div class="rank">${i + 1}</div>
+						<div class="team-info">
+							<div class="team-name">Team ${t.id}</div>
+							<small style="color:#94a3b8">${rosterInfo}</small>
+						</div>
+						<div class="stat">${categoryData.rankBy === 'wins' ? t.w + 'W' : (t.pts || 0) + 'pts'}</div>
+					</div>
+				`;
+			}).join('');
+		}
+		
+		
+		function renderLiveMatches(data) {
+			const container = document.getElementById('live-courts');
+			let html = '';
+
+			['novice', 'intermediate'].forEach(bracket => {
+				const courts = data[bracket].courts || {};
+				Object.entries(courts).forEach(([matchKey, courtNum]) => {
+					if (!courtNum) return; // Only show if a court number is assigned
+
+					// Extract Team IDs from matchKey (e.g., "r0_t1_t2")
+					const parts = matchKey.split('_');
+					if (parts.length < 3) return;
+					const t1Id = parts[1].replace('t', '');
+					const t2Id = parts[2].replace('t', '');
+
+					
+				});
+			});
+			
+		}
+		
+		
+		
+		
+
+        window.onload = init;
+    </script>
+</body>
+</html>

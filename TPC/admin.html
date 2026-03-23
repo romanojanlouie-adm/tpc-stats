@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <meta charset="UTF-8">
+    <title>TPC Admin</title>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #1A4335; color: white; padding: 20px; }
+        .container { background: #FDFBF3; color: #1A4335; padding: 25px; border-radius: 16px; max-width: 1200px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .card { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #ddd; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        h2 { margin-top: 0; color: #1A4335; border-bottom: 2px solid #528B71; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85rem; }
+        th, td { padding: 10px; border: 1px solid #eee; text-align: center; }
+        th { background: #528B71; color: white; }
+        input[type="number"] { width: 45px; padding: 5px; }
+        .btn { padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; text-transform: uppercase; transition: 0.2s; }
+        .btn-primary { background: #1A4335; color: white; }
+        .btn-accent { background: #528B71; color: white; }
+        .btn-danger { background: #F32013; color: white; }
+        .instance-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #528B71; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>🛡️ TPC Admin Portal</h1>
+        <button class="btn btn-danger" onclick="globalSeasonReset()">🔥 Global Season Reset</button>
+    </div>
+    
+
+    <div class="grid">
+        <div class="card">
+            <h2>📢 Global Broadcast</h2>
+            <p style="font-size: 0.8rem; color: #666;">Sends a voice announcement to all active sessions.</p>
+            <textarea id="broadcastMsg" placeholder="Type message here..." style="width: 100%; height: 80px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: inherit; margin-bottom: 10px;"></textarea>
+            <button class="btn btn-primary" style="width: 100%;" onclick="sendBroadcast()">Send Announcement</button>
+        </div>
+
+        <div class="card">
+            <h2>Active Sessions</h2>
+            <div id="instanceList">Loading connected devices...</div>
+        </div>
+        <div class="card">
+            <h2>🗣️ Pronunciation Guide</h2>
+            <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                <input type="text" id="rawName" placeholder="Exact Name" style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                <input type="text" id="phoneticName" placeholder="Phonetics" style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                <button class="btn" style="background: #64748b; width: auto;" onclick="testVoice()">🔊 Test</button>
+                <button class="btn btn-accent" style="width: auto;" onclick="addPronunciation()">Add</button>
+            </div>
+            <div id="guideList" style="max-height: 150px; overflow-y: auto; font-size: 0.8rem; border-top: 1px solid #eee; padding-top: 10px;"></div>
+        </div>
+
+
+    </div>
+
+    <div class="card" style="overflow-x: auto; margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>👥 Master Player Database</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn" style="background: #475569; width: auto;" onclick="forceGlobalStatSync()">🔄 Force Global Sync</button>
+                    <input type="text" id="playerSearch" placeholder="Search name..." onkeyup="filterPlayers()" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                </div>
+            </div>
+        <table id="playerTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Wins</th>
+                    <th>Losses</th>
+                    <th>Games</th>
+                    <th>Pts For</th>
+                    <th>Pts Agst</th>
+                    <th>DUPR</th> <th>Last</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="playerBody"></tbody>
+        </table>
+    </div>
+
+    <div class="metrics-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 25px;">
+        <div class="card" style="text-align: center; border-left: 5px solid #1A4335;">
+            <small style="color: #666; font-size: 0.65rem; text-transform: uppercase;">Total Matches</small>
+            <h2 id="metric-total-games" style="margin: 5px 0; font-size: 1.4rem;">0</h2>
+        </div>
+        <div class="card" style="text-align: center; border-left: 5px solid #528B71;">
+            <small style="color: #666; font-size: 0.65rem; text-transform: uppercase;">Avg DUPR</small>
+            <h2 id="metric-avg-dupr" style="margin: 5px 0; font-size: 1.4rem;">0.00</h2>
+        </div>
+
+        <div class="card" style="text-align: center; border-left: 5px solid #4A90E2;">
+            <small style="color: #666; font-size: 0.65rem; text-transform: uppercase;">Avg Wait Time</small>
+            <h2 id="metric-avg-wait" style="margin: 5px 0; font-size: 1.4rem;">--</h2>
+        </div>
+        <div class="card" style="text-align: center; border-left: 5px solid #9B51E0;">
+            <small style="color: #666; font-size: 0.65rem; text-transform: uppercase;">Match Closeness</small>
+            <h2 id="metric-closeness" style="margin: 5px 0; font-size: 1.4rem;">0%</h2>
+        </div>
+
+        <div class="card" style="text-align: center; border-left: 5px solid #F9A825;">
+            <small style="color: #666; font-size: 0.65rem; text-transform: uppercase;">Top Improver</small>
+            <h2 id="metric-top-trend" style="margin: 5px 0; font-size: 1.1rem; color: #1A4335;">--</h2>
+        </div>
+        <div class="card" style="text-align: center; border-left: 5px solid #aec6cf;">
+            <small style="color: #666; font-size: 0.65rem; text-transform: uppercase;">% Active Today</small>
+            <h2 id="metric-active-percent" style="margin: 5px 0; font-size: 1.4rem;">0%</h2>
+        </div>
+        <div class="card" style="text-align: center; border-left: 5px solid #F32013;">
+            <small style="color: #666; font-size: 0.65rem; text-transform: uppercase;">Peak Hour</small>
+            <h2 id="metric-peak-hours" style="margin: 5px 0; font-size: 1.4rem;">--</h2>
+        </div>
+        
+    </div>
+<div class="card">
+    <h3>Performance Metrics</h3>
+<select id="metricRange" onchange="loadMetrics()">
+    <option value="1">Daily (Today)</option>
+    <option value="7">Weekly (Last 7 Days)</option>
+    <option value="30">Monthly (Last 30 Days)</option>
+    <option value="999">TEST (all-time)</option>
+</select>
+    <div id="metricsDisplay" style="margin-top:15px; font-size: 0.9em;">
+        </div>
+
+
+       
+</div>
+
+
+
+
+</div>
+
+<script>
+    const firebaseConfig = { databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- UNIFIED INITIALIZATION ---
+    // --- THE ONLY STARTUP FUNCTION YOU NEED ---
+    function init() {
+        console.log("TPC Admin: Starting Cloud Sync...");
+
+        // Start background listeners
+        loadGuide();
+        loadMasterData(); // This handles the player table
+        loadLiveInstances(); // This handles the tablets
+        loadMetrics(); // handles metrics
+
+        // Nightly Cleanup (Optional background task)
+        db.ref('TPC_live_stats').once('value', snapshot => {
+            const data = snapshot.val();
+            if (data) cleanupOldInstances(data);
+        });
+    }
+
+    // Ensure the page is ready before running
+    window.onload = init;
+
+    // --- START THE APP ---
+    // Ensure the DOM is fully loaded before running init
+    window.addEventListener('DOMContentLoaded', (event) => {
+        init();
+    });
+
+    
+    async function updatePlayer(name) {
+        const getVal = (id, isNum = true) => {
+            const el = document.getElementById(id);
+            if (!el) return isNum ? 0 : '';
+            return isNum ? parseInt(el.value) || 0 : el.value;
+        };
+
+        const updates = {
+            wins: getVal(`w-${name}`),
+            losses: getVal(`l-${name}`),
+            games: getVal(`g-${name}`),
+            ptsFor: getVal(`pf-${name}`),
+            ptsAgainst: getVal(`pa-${name}`),
+            lastResult: getVal(`res-${name}`, false)
+        };
+
+        try {
+            // 1. Update the Master Database first
+            await db.ref('TPC_all_players/' + name).update(updates);
+
+            // 2. Instead of overwriting the whole session, we update ONLY that player
+            // inside the live stats of every active tablet
+            const snapshot = await db.ref('TPC_live_stats').once('value');
+            const instances = snapshot.val();
+
+            if (instances) {
+                const syncPromises = Object.keys(instances).map(id => {
+                    let instanceStats = instances[id].stats || [];
+                    const pIdx = instanceStats.findIndex(s => s.name === name);
+
+                    if (pIdx !== -1) {
+                        // Update only the specific player at their specific index
+                        return db.ref(`TPC_live_stats/${id}/stats/${pIdx}`).update(updates);
+                    }
+                    return Promise.resolve();
+                });
+                await Promise.all(syncPromises);
+            }
+
+            alert(`Successfully synced ${name} to all devices.`);
+        } catch (err) {
+            console.error("Critical Sync Failure:", err);
+            alert("Update failed. See console for details.");
+        }
+    }
+
+    async function sendBroadcast() {
+        const msg = document.getElementById('broadcastMsg').value;
+        if(!msg) return;
+        
+        // Timestamp must be unique to trigger the 'on' value listener on tablets
+        await db.ref('SYSTEM_COMMANDS/announcement').set({ 
+            text: msg, 
+            timestamp: Date.now() 
+        });
+        
+        document.getElementById('broadcastMsg').value = '';
+        console.log("Broadcast sent to Firebase.");
+    }
+    async function sendInstanceCmd(instanceId, type) {
+        await db.ref(`SYSTEM_COMMANDS/instances/${instanceId}`).set({
+            command: type,
+            timestamp: Date.now()
+        });
+        alert(`Command ${type} sent to ${instanceId}`);
+    }
+    async function globalSeasonReset() {
+        if (prompt("Type 'RESET' to wipe ALL global data across all devices:") !== "RESET") return;
+        const rid = Date.now();
+        await db.ref('TPC_all_players').remove();
+        await db.ref('TPC_live_stats').remove();
+        await db.ref('SYSTEM_COMMANDS/reset').set({ timestamp: rid });
+        location.reload();
+    }
+
+    function filterPlayers() {
+        const q = document.getElementById('playerSearch').value.toUpperCase();
+        document.querySelectorAll('.player-row').forEach(row => {
+            const name = row.querySelector('.p-name').innerText;
+            row.style.display = name.includes(q) ? '' : 'none';
+        });
+    }
+
+    function cleanupOldInstances(data) {
+        const NOW = Date.now();
+        const TWELVE_HOURS = 12 * 60 * 60 * 1000;
+
+        for (let id in data) {
+            if (NOW - data[id].lastUpdated > TWELVE_HOURS) {
+                console.log("Cleaning up inactive instance:", id);
+                db.ref(`TPC_live_stats/${id}`).remove();
+            }
+        }
+    }
+
+    function loadGuide() {
+        db.ref('SYSTEM_SETTINGS/pronunciation_guide').on('value', snapshot => {
+            const guide = snapshot.val() || {};
+            const list = document.getElementById('guideList');
+            list.innerHTML = '';
+            for (let key in guide) {
+                list.innerHTML += `
+                    <div style="display:flex; justify-content:space-between; padding: 5px; border-bottom: 1px solid #eee;">
+                        <span><strong>${key}</strong> → ${guide[key]}</span>
+                        <button onclick="deletePronunciation('${key}')" style="border:none; background:none; color:red; cursor:pointer;">✕</button>
+                    </div>`;
+            }
+        });
+    }
+
+    async function addPronunciation() {
+        const raw = document.getElementById('rawName').value.trim().toUpperCase();
+        const phonetic = document.getElementById('phoneticName').value.trim();
+        if (!raw || !phonetic) return;
+        
+        await db.ref(`SYSTEM_SETTINGS/pronunciation_guide/${raw}`).set(phonetic);
+        document.getElementById('rawName').value = '';
+        document.getElementById('phoneticName').value = '';
+    }
+
+    async function deletePronunciation(key) {
+        await db.ref(`SYSTEM_SETTINGS/pronunciation_guide/${key}`).remove();
+    }
+
+    function testVoice() {
+        const phonetic = document.getElementById('phoneticName').value.trim();
+        const raw = document.getElementById('rawName').value.trim();
+        
+        // Determine what to say: phonetic preferred, then raw name
+        const textToSay = phonetic || raw || "Please enter a name to test";
+        
+        const speech = new SpeechSynthesisUtterance(textToSay);
+        const voices = window.speechSynthesis.getVoices();
+        
+        // Match the same voice used on the main tablet (Zira/Samantha/English)
+        const bestVoice = voices.find(v => v.name.includes('Zira') || v.name.includes('Samantha')) || 
+                        voices.find(v => v.lang.startsWith('en'));
+        
+        if (bestVoice) speech.voice = bestVoice;
+        speech.rate = 0.85; // Match the tablet's speed
+        
+        window.speechSynthesis.speak(speech);
+    }
+
+    async function forceGlobalStatSync() {
+        const masterSnapshot = await db.ref('TPC_all_players').once('value');
+        const masterData = masterSnapshot.val();
+        if (!masterData) return alert("No master data found.");
+        
+        const masterArray = Object.values(masterData);
+
+        const liveSnapshot = await db.ref('TPC_live_stats').once('value');
+        const instances = liveSnapshot.val();
+
+        if (instances) {
+            for (let id in instances) {
+                // Overwrite the session stats with the full master list
+                await db.ref(`TPC_live_stats/${id}/stats`).set(masterArray);
+                
+                // Tell the tablet to reload so it sees the new array
+                db.ref(`SYSTEM_COMMANDS/instances/${id}`).set({
+                    command: 'FORCE_REFRESH',
+                    timestamp: Date.now()
+                });
+            }
+        }
+        alert("Global Sync Complete: All sessions now match the Master Database.");
+    }
+
+
+    function getEstDUPR(p) {
+        const wins = p.wins || 0;
+        const games = p.games || 0;
+        const ptsFor = p.ptsFor || 0;
+        const ptsAgainst = p.ptsAgainst || 0;
+
+        const wr = games === 0 ? 0 : (wins / games);
+        const pd = games > 0 ? (ptsFor - ptsAgainst) / games : 0;
+        
+        // Formula: Base 2.5 + (Win Rate * 3.0) + (Point Diff * 0.1)
+        const base = 2.5 + (wr * 3.0) + (pd * 0.1);
+        
+        // Volume factor: DUPR becomes more "accurate" as they play more games (up to 20)
+        const volumeFactor = Math.min(games / 20, 1);
+        return (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
+    }
+
+
+
+function loadMasterData() {
+    // 1. Listen for Live Stats and History
+    db.ref('TPC_live_stats').on('value', (snapshot) => {
+        const instances = snapshot.val();
+        console.log("Admin: Received instance data:", instances); // Debugging line
+
+        if (!instances) {
+            document.getElementById('metric-total-games').innerText = "0";
+            return;
+        }
+
+        let allHistory = [];
+        let totalWaitMs = 0;
+        let waitCount = 0;
+        let closeMatches = 0;
+        let hourCounts = {};
+
+        // Iterate through every connected tablet/instance
+        Object.keys(instances).forEach(id => {
+            const inst = instances[id];
+            
+            // Check if history exists for this specific tablet
+            if (inst.history) {
+                // Handle both Array and Object formats from Firebase
+                const hArray = Array.isArray(inst.history) ? inst.history : Object.values(inst.history);
+                allHistory = allHistory.concat(hArray);
+                
+                hArray.forEach(match => {
+                    // Logic for Match Closeness (Score difference <= 2)
+                    if (match.scores && match.scores.length >= 2) {
+                        const diff = Math.abs(parseInt(match.scores[0]) - parseInt(match.scores[1]));
+                        if (diff <= 2) closeMatches++;
+                    }
+
+                    // Logic for Avg Wait Time
+                    if (match.waitTime) {
+                        totalWaitMs += match.waitTime;
+                        waitCount++;
+                    }
+
+                    // Logic for Peak Hours
+                    const matchDate = new Date(match.timestamp || Date.now());
+                    const hour = matchDate.getHours();
+                    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+                });
+            }
+        });
+
+        // --- Update UI Cards ---
+        const totalGames = allHistory.length;
+        document.getElementById('metric-total-games').innerText = totalGames;
+        
+        // Closeness Calculation
+        const closenessPercent = totalGames > 0 ? ((closeMatches / totalGames) * 100).toFixed(0) : 0;
+        document.getElementById('metric-closeness').innerText = closenessPercent + "%";
+
+        // Wait Time Calculation (Converting ms to minutes)
+        document.getElementById('metric-avg-wait').innerText = waitCount > 0 
+            ? Math.round(totalWaitMs / waitCount / 60000) + "m" 
+            : "0m";
+
+        // Peak Hour Calculation
+        let peakHour = "N/A", maxMatches = 0;
+        for (const [hour, count] of Object.entries(hourCounts)) {
+            if (count > maxMatches) {
+                maxMatches = count;
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const displayHour = hour % 12 || 12;
+                peakHour = `${displayHour} ${ampm}`;
+            }
+        }
+        document.getElementById('metric-peak-hours').innerText = peakHour;
+
+        // 2. Now Process Player Stats (Nested so we have access to allHistory for trends)
+        db.ref('TPC_all_players').once('value', (pSnapshot) => {
+            const data = pSnapshot.val();
+            if (!data) return;
+
+            let totalDupr = 0, playerCount = 0, activeCount = 0, trends = [];
+            const tbody = document.getElementById('playerBody');
+            tbody.innerHTML = '';
+
+            for (let name in data) {
+                const p = data[name];
+                playerCount++;
+                if (p.games > 0) activeCount++;
+                
+                const dupr = parseFloat(getEstDUPR(p));
+                totalDupr += dupr;
+
+                const trendScore = getPlayerTrend(name, allHistory);
+                const allTimeWR = (p.wins || 0) / (p.games || 1);
+                trends.push({ name, delta: trendScore - allTimeWR });
+
+                tbody.innerHTML += `
+                    <tr class="player-row">
+                        <td class="p-name" style="font-weight:bold;">${name}</td>
+                        <td><input type="number" id="w-${name}" value="${p.wins || 0}"></td>
+                        <td><input type="number" id="l-${name}" value="${p.losses || 0}"></td>
+                        <td><input type="number" id="g-${name}" value="${p.games || 0}"></td>
+                        <td><input type="number" id="pf-${name}" value="${p.ptsFor || 0}"></td>
+                        <td><input type="number" id="pa-${name}" value="${p.ptsAgainst || 0}"></td>
+                        <td style="font-weight:bold; color:#1A4335;">${dupr.toFixed(2)}</td>
+                        <td><input type="text" id="res-${name}" value="${p.lastResult || ''}" style="width:70px"></td>
+                        <td><button class="btn" style="background:#528B71; color:white; padding:5px 10px;" onclick="updatePlayer('${name}')">SAVE</button></td>
+                    </tr>`;
+            }
+
+            document.getElementById('metric-avg-dupr').innerText = playerCount > 0 ? (totalDupr / playerCount).toFixed(2) : "0.00";
+            document.getElementById('metric-active-percent').innerText = playerCount > 0 ? ((activeCount / playerCount) * 100).toFixed(0) + "%" : "0%";
+            
+            const top = trends.sort((a,b) => b.delta - a.delta)[0];
+            document.getElementById('metric-top-trend').innerText = top && top.delta > 0 ? top.name : "--";
+        });
+    });
+}
+    function loadLiveInstances() {
+        db.ref('TPC_live_stats').on('value', (snapshot) => {
+            const data = snapshot.val();
+            const list = document.getElementById('instanceList');
+            if (!list) return;
+
+            list.innerHTML = '';
+            if (!data) { 
+                list.innerHTML = "<p style='color:#666; font-size:0.8rem;'>No active sessions connected.</p>"; 
+                return; 
+            }
+
+            for (let id in data) {
+                list.innerHTML += `
+                    <div class="instance-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px; border-left: 5px solid #1A4335;">
+                        <div style="color: #1A4335;">
+                            <strong style="font-size: 1rem;">ID: ${id}</strong><br>
+                            <small style="color: #666;">Last Sync: ${new Date(data[id].lastUpdated).toLocaleTimeString()}</small>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn" style="background: #aec6cf; color: #1A4335; font-size: 0.7rem; padding: 8px 12px;" onclick="sendInstanceCmd('${id}', 'CLEAR_QUEUE')">CLEAR QUEUE</button>
+                            <button class="btn" style="background: #F9A825; color: white; font-size: 0.7rem; padding: 8px 12px;" onclick="sendInstanceCmd('${id}', 'RESET_COURTS')">RESET COURTS</button>
+                        </div>
+                    </div>`;
+            }
+        });
+    }
+
+    function getPlayerTrend(playerName, clubHistory) {
+        // Look at the last 5 matches this player was involved in
+        const personalHistory = clubHistory.filter(h => 
+            h.teams[0].includes(playerName) || h.teams[1].includes(playerName)
+        ).slice(-5);
+
+        if (personalHistory.length < 3) return 0; // Not enough data for a trend
+
+        let recentWins = 0;
+        personalHistory.forEach(h => {
+            const isTeamA = h.teams[0].includes(playerName);
+            const won = isTeamA ? (h.scores[0] > h.scores[1]) : (h.scores[1] > h.scores[0]);
+            if (won) recentWins++;
+        });
+
+        return (recentWins / personalHistory.length); // Returns decimal (0.0 to 1.0)
+    }
+
+
+
+
+async function loadMetrics() {
+    const range = document.getElementById('metricRange').value;
+    const snapshot = await db.ref('TPC_all_players').once('value');
+    const players = snapshot.val() || {};
+    
+    let totalGames = 0;
+    let totalDupr = 0;
+    let playerCount = 0;
+    let aggregate = {};
+
+    Object.keys(players).forEach(name => {
+        const p = players[name];
+        totalGames += (p.wins + p.losses);
+        if (p.dupr) {
+            totalDupr += parseFloat(p.dupr);
+            playerCount++;
+        }
+        aggregate[name] = p;
+    });
+
+    // Update UI Cards
+    document.getElementById('metric-total-games').innerText = totalGames;
+    document.getElementById('metric-avg-dupr').innerText = playerCount > 0 ? (totalDupr / playerCount).toFixed(2) : "0.00";
+
+    renderMetricsTable(aggregate);
+}
+
+function renderMetricsTable(aggregate) {
+    const display = document.getElementById('metricsDisplay');
+    let html = `
+        <table style="width:100%; border-collapse: collapse; margin-top: 10px; color: #1A4335;">
+            <thead>
+                <tr style="background-color: #528B71; color: white;">
+                    <th style="padding: 12px; text-align: left;">Player</th>
+                    <th style="padding: 12px;">Wins</th>
+                    <th style="padding: 12px;">Losses</th>
+                    <th style="padding: 12px;">Win %</th>
+                </tr>
+            </thead>
+            <tbody>`;
+    
+    const sortedNames = Object.keys(aggregate).sort((a, b) => aggregate[b].wins - aggregate[a].wins);
+
+    sortedNames.forEach(name => {
+        const p = aggregate[name];
+        const total = p.wins + p.losses;
+        const winRate = total > 0 ? ((p.wins / total) * 100).toFixed(1) + "%" : "0%";
+        
+        html += `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 12px; font-weight: 600;">${name}</td>
+                <td style="padding: 12px; text-align: center;">${p.wins}</td>
+                <td style="padding: 12px; text-align: center;">${p.losses}</td>
+                <td style="padding: 12px; text-align: center;">${winRate}</td>
+            </tr>`;
+    });
+
+    html += '</tbody></table>';
+    display.innerHTML = html;
+}
+
+
+    loadMasterData();
+    loadLiveInstances();
+
+    init();
+</script>
+</body>
+</html>

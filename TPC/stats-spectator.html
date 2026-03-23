@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+	<script src="./qrcode.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Stats - TPC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+       :root { 
+			--primary: #235B47;        /* Logo Green */
+			--primary-light: #3d7a64;  /* Lighter Green for buttons */
+			--logo-cream: #F2E8CF;     /* Logo Background */
+			--dark-bg: #d9cfb8;        /* Muted Vintage Paper */
+			--panel-bg: #f8f3e6;       /* Soft Cream Panel */
+			--text: #1a332a;           /* Deep Forest Green Text */
+			--accent: #4A8C73; 
+			--danger: #A63446; 
+			--grey: #8C7C65; 
+			--court-surface: #e5ddc8;  /* Subtle court tone */
+			--winner: #22c55e;
+			--loser: #f59e0b;
+			--primary-green: #1b4d3e;
+			--gold-gradient: linear-gradient(90deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+			--card-bg: #f3f0e0;
+		}
+
+        body { 
+            background-color: var(--dark-bg); 
+            color: var(--text); 
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0; padding: 40px;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        header { 
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid var(--primary); padding-bottom: 20px; margin-bottom: 40px;
+        }
+
+        h1 { margin: 0; font-size: 2.5rem; letter-spacing: -1px; }
+        .live-indicator { color: var(--primary); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .dot { width: 12px; height: 12px; background: var(--primary); border-radius: 50%; animation: pulse 1.5s infinite; }
+
+        @keyframes pulse { 
+            0% { opacity: 1; transform: scale(1); } 
+            50% { opacity: 0.4; transform: scale(1.2); } 
+            100% { opacity: 1; transform: scale(1); } 
+        }
+
+        .stats-grid { 
+            display: grid; grid-template-columns: 2fr 1fr; gap: 40px; 
+        }
+
+        .card { background: #D9CFB8); border-radius: 24px; padding: 30px; border: solid #3d7a64; }
+        h2 { color: var(--primary); text-transform: uppercase; font-size: 1.2rem; margin-top: 0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; color: var(--grey); font-size: 0.8rem; text-transform: uppercase; padding: 12px; }
+        td { padding: 18px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 1.1rem; }
+
+        .rank { font-weight: 800; color: var(--primary); width: 40px; }
+        .player-name { font-weight: 700; }
+        .dupr-badge { background: var(--accent); color: white; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 0.9rem; }
+        
+        .history-item { 
+            padding: 15px; border-left: 4px solid var(--primary); 
+            background: rgba(255,255,255,0.03); margin-bottom: 15px; border-radius: 0 12px 12px 0;
+        }
+        .history-score { font-weight: 800; color: var(--primary); font-size: 1.2rem; display: block; }
+        .history-players { font-size: 0.9rem; color: var(--grey); }
+
+        @media (max-width: 900px) { .stats-grid { grid-template-columns: 1fr; } }
+		
+		
+		/* Stat Card Overlay */
+		.stat-card-overlay {
+			position: fixed; /* Changed from default to fixed */
+			top: 0;
+			left: 0;
+			width: 100vw;
+			height: 100vh;
+			background: rgba(0, 0, 0, 0.9); /* Darker backdrop for focus */
+			display: none; /* Flex is required for centering */
+			justify-content: center;
+			align-items: center;
+			z-index: 2000; /* Ensure it's above your nav/header */
+			cursor: pointer;
+		}
+		.player-card {
+			background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+			width: 400px; padding: 40px; border-radius: 30px;
+			border: 3px solid var(--primary); text-align: center;
+			box-shadow: 0 0 50px rgba(146, 208, 39, 0.3);
+		}
+		.card-name { font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; color: white; }
+		.card-dupr { font-size: 4rem; font-weight: 900; color: var(--primary); margin: 20px 0; }
+		.card-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+		.stat-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 15px; }
+		.stat-val { display: block; font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+		.stat-lbl { font-size: 0.7rem; color: var(--grey); text-transform: uppercase; }
+		
+		@media (max-width: 600px) {
+			.player-card {
+				width: 85% !important; /* Prevents side-cropping on phones */
+				padding: 25px !important;
+				margin: 10px;
+			}
+			
+			.card-dupr {
+				font-size: 3rem !important; /* Slightly smaller for mobile height */
+			}
+
+			.card-name {
+				font-size: 1.8rem !important;
+			}
+		}
+		
+		
+	
+		.stat-row-alt { 
+			display: flex; 
+			flex-direction: column; 
+			align-items: flex-start; 
+			padding: 12px; 
+			background: rgba(255,255,255,0.03); 
+			border-radius: 12px; 
+			margin-bottom: 8px; 
+		}
+
+		.reliability-bg {
+			width: 100%; 
+			background: #0f172a; 
+			height: 4px; 
+			border-radius: 10px; 
+			margin-top: 4px; 
+			overflow: hidden;
+		}
+
+		.reliability-fill {
+			background: var(--primary); 
+			height: 100%;
+		}
+
+		.form-dot {
+			font-size: 0.7rem;
+			font-weight: 800;
+			margin-right: 3px;
+		}
+		
+		/* Mobile-First Player Card Design */
+		.player-card {
+			background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+			width: 340px;
+			padding: 30px;
+			border-radius: 24px;
+			border: 1px solid rgba(146, 208, 39, 0.3);
+			text-align: center;
+			box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+		}
+
+		.card-title { color: var(--primary); font-size: 0.7rem; font-weight: 800; letter-spacing: 2px; }
+		.card-subtitle { color: var(--grey); font-size: 0.6rem; margin-top: 2px; }
+
+		.card-name {
+			font-size: 2.2rem !important;
+			font-weight: 800;
+			margin: 20px 0;
+			color: #fff;
+			text-transform: uppercase;
+			letter-spacing: -1px;
+		}
+
+		.card-dupr-badge {
+			background: rgba(146, 208, 39, 0.1);
+			border: 1px solid var(--primary);
+			padding: 15px;
+			border-radius: 16px;
+			margin-bottom: 25px;
+		}
+
+		.dupr-lbl { color: var(--grey); font-size: 0.65rem; font-weight: 700; display: block; }
+		.dupr-val { font-size: 3.5rem !important; font-weight: 900; color: var(--primary); line-height: 1; }
+
+		.card-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; }
+		.card-stat-item { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; }
+
+		.stat-num { font-size: 1.8rem !important; font-weight: 800; display: block; }
+		.win-color { color: #22c55e; }
+		.loss-color { color: #ef4444; }
+		.stat-label { color: var(--grey); font-size: 0.6rem; font-weight: 700; }
+
+		.card-footer { margin-top: 10px; opacity: 0.5; font-size: 0.55rem; color: var(--grey); }
+		.footer-line { height: 1px; background: rgba(255,255,255,0.1); margin-bottom: 10px; }
+
+		/* The UI Button (Only visible on screen) */
+		.download-trigger {
+			margin-top: 20px;
+			background: var(--primary);
+			color: #000;
+			width: 100%;
+			padding: 15px;
+			border-radius: 12px;
+			font-weight: 800;
+			border: none;
+			cursor: pointer;
+		}
+		
+		
+		.player-card-elongated {
+			cursor: default;
+			background-color: var(--card-bg);
+			width: 360px; /* Mobile-friendly width */
+			height: 640px; /* 9:16 Ratio */
+			border: 8px solid var(--primary-green);
+			border-radius: 25px;
+			padding: 30px;
+			position: relative;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			overflow: hidden;
+			box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+			font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+			color: var(--primary-green);
+			text-align: center;
+		}
+		
+		.card-watermark {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			width: 90%;
+			height: 90%;
+			background-repeat: no-repeat;
+			background-position: center;
+			background-size: contain;
+			opacity: 0.15;
+			z-index: 0; 
+			pointer-events: none; 
+		}
+		.card-branding, .player-display-name, .stats-container, .card-footer-info {
+			z-index: 1; /* Keep text above watermark */
+		}
+		
+		.stats-container {
+			background: rgba(255,255,255,0.4);
+			backdrop-filter: blur(5px);
+			border: 1px solid var(--primary-green);
+			border-radius: 15px;
+			width: 100%;
+			padding: 20px;
+		}
+
+		.brand-name { font-weight: 800; font-size: 25px; letter-spacing: 2px; }
+		.brand-session { font-size: 15px; opacity: 0.8; }
+
+		.divider { width: 80%; border: 0.5px solid rgba(27, 77, 62, 0.2); margin: 20px 0; }
+
+		.player-display-name {
+			font-size: 42px;
+			font-weight: 900;
+			margin: 10px 0;
+			letter-spacing: -1px;
+		}
+
+		.rank-section { margin-bottom: 20px; }
+		.medal-icon { font-size: 40px; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2)); }
+		.rank-text { font-weight: bold; font-size: 14px; margin-top: 5px; }
+		.player-count { font-size: 0.75rem; color: rgba(255,255,255,0.7); }
+
+		.stats-grid-vertical { background: #F2E8CF; border-radius: 15px; padding: 20px; border: 1px solid var(--primary-light); margin-bottom: 20px; }
+
+		.stat-main-box { border-bottom: 3px solid #3d7a64; padding-bottom: 15px; margin-bottom: 15px; }
+		.stat-main-val { font-size: 64px; font-weight: 800; line-height: 1; }
+		.stat-main-lbl { font-size: 12px; letter-spacing: 1px; margin-bottom: 15px; }
+
+		.stat-sub-grid {
+			display: flex;
+			justify-content: space-around;
+			border-top: 1px solid var(--primary-green);
+			padding-top: 15px;
+		}
+		
+		.win-circle {
+			border: 3px solid var(--primary-green);
+			border-radius: 50%;
+			width: 35px;
+			height: 35px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 10px;
+			font-weight: bold;
+			margin-right: 8px;
+		}
+		.stat-sub-box { display: flex; align-items: center; }
+		.stat-sub-val { font-size: 50px; font-weight: bold; }
+		.stat-sub-lbl { font-size: 20px; opacity: 0.7; }
+		.card-footer-info { font-size: 0.65rem; color: var(--grey); font-weight: 600; margin-top: 20px; }
+		.footer-app { color: var(--primary); font-weight: 800; text-transform: uppercase; margin-top: 4px; }
+
+
+		.download-btn-ui {
+			background: var(--gold-gradient);
+			border: none;
+			border-radius: 50px;
+			padding: 15px 30px;
+			color: #1b4d3e;
+			font-weight: 800;
+			font-size: 14px;
+			cursor: pointer;
+			margin-top: 20px;
+			width: 100%;
+			box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+			transition: transform 0.2s;
+		}
+
+		.download-btn-ui:hover { transform: scale(1.02); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1>PLAYER LEADERBOARD</h1>
+            <div class="live-indicator"><div class="dot"></div> LIVE SYSTEM STATS</div>
+        </div>
+    </header>
+
+    <div class="stats-grid">
+        <div class="card">
+            <h2>Today's Top Performers</h2>
+			
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Win/Loss</th>
+                        <th>Games played</th>
+                        <th>Est. DUPR</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card"><h2>All-Time Rankings</h2> <div id="allTimeLeaderboard"></div> </div>
+    </div>
+</div>
+
+
+		<div id="statCardOverlay" class="stat-card-overlay" onclick="this.style.display='none'">
+			<div id="downloadableCard" class="player-card-elongated" onclick="event.stopPropagation()">
+				
+				<div class="card-watermark"></div>
+
+				<div class="card-branding">
+					<div class="brand-name">TPC</div>
+					<div class="brand-session">Official Performance Record</div>
+				</div>
+
+				<hr class="divider">
+
+				<div id="cardName" class="player-display-name">MIKKO</div>
+
+				<div class="rank-section">
+					<div class="medal-icon">⭐</div>
+					<div class="rank-text">CLUB RANKING CARD</div>
+				</div>
+
+				<div class="stats-container">
+					<div class="stat-main-box">
+						<div id="cardDupr" class="stat-main-val">8.03</div>
+						<div class="stat-main-lbl">ESTIMATED DUPR</div>
+					</div>
+					
+					<div class="stat-sub-grid">
+						<div class="stat-sub-box">
+								
+							
+								<div id="cardWins" class="stat-sub-val">1</div>
+								<div class="stat-sub-lbl">WINS</div>
+							
+						</div>
+						<div class="stat-sub-box">
+							<div id="cardLoss" class="stat-sub-val">0</div>
+							<div class="stat-sub-lbl">LOSSES</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="card-footer-info">
+					<p>Established 2025</p>
+					<div class="footer-app">SANTA MARIA PICKLEBALL CLUB</div>
+				</div>
+
+				<button id="closeBtn" class="download-btn-ui" onclick="downloadCurrentCard()">
+					DOWNLOAD OFFICIAL CARD
+				</button>
+			</div>
+		</div>
+
+	<script>
+// 1. Firebase Configuration
+const firebaseConfig = {
+    databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Global variables to store the synced data from the Cloud
+let cloudHistory = [];
+let cloudStats = [];
+let cloudQueue = [];
+let cloudCourts = [];
+
+
+// 2. THE SYNC ENGINE: Merging multiple device instances
+db.ref('TPC_live_stats').on('value', (snapshot) => {
+    const allDevicesData = snapshot.val();
+    
+    if (allDevicesData) {
+        console.log("Cloud Update Received (Merged):", new Date().toLocaleTimeString());
+        
+        // Reset global arrays before merging fresh data
+        cloudHistory = [];
+        cloudStats = [];
+        cloudQueue = [];
+        cloudCourts = [];
+
+        // Temporary maps to merge stats and players without duplicates
+        const mergedStatsMap = {};
+
+        // Loop through every device instance in the database
+        Object.keys(allDevicesData).forEach(deviceID => {
+            const device = allDevicesData[deviceID];
+
+            // 1. Merge Match History
+            if (device.history) {
+                cloudHistory = cloudHistory.concat(device.history);
+            }
+
+            // 2. Merge Courts (showing all active courts from all laptops)
+            if (device.courts) {
+                cloudCourts = cloudCourts.concat(device.courts);
+            }
+
+            // 3. Merge Queue (data.players)
+            if (device.players) {
+                cloudQueue = cloudQueue.concat(device.players);
+            }
+
+            // 4. Merge Career Stats (Totaling wins/losses for the same player name)
+            if (device.stats) {
+                device.stats.forEach(player => {
+                    if (!mergedStatsMap[player.name]) {
+                        mergedStatsMap[player.name] = { ...player };
+                    } else {
+                        mergedStatsMap[player.name].wins += (player.wins || 0);
+                        mergedStatsMap[player.name].losses += (player.losses || 0);
+                        mergedStatsMap[player.name].games += (player.games || 0);
+                        mergedStatsMap[player.name].ptsFor += (player.ptsFor || 0);
+                        mergedStatsMap[player.name].ptsAgainst += (player.ptsAgainst || 0);
+                        // Keep the most recent 'lastFive' record if available
+                        if (player.lastFive) mergedStatsMap[player.name].lastFive = player.lastFive;
+                    }
+                });
+            }
+        });
+
+        // Convert merged stats map back into the cloudStats array
+        cloudStats = Object.values(mergedStatsMap);
+        
+        // Trigger the UI refresh with the combined data
+        refreshStats();
+    }
+});
+
+// 3. Logic Functions (Updated to use Cloud Variables instead of LocalStorage)
+function calculateTodayStats() {
+    const todayStats = {};
+
+    // Identify all unique players active today from the Cloud data
+    const activeNames = new Set([
+        ...cloudQueue.map(p => p.name),
+        ...cloudCourts.flatMap(c => c.players || []).map(p => p.name)
+    ]);
+
+    cloudHistory.forEach(match => {
+        const teams = match.desc.split(' vs ');
+        const allMatchPlayers = [...teams[0].split('/'), ...teams[1].split('/')];
+        allMatchPlayers.forEach(name => activeNames.add(name));
+    });
+
+    activeNames.forEach(name => {
+        todayStats[name] = { name, wins: 0, losses: 0, games: 0, ptsFor: 0, ptsAgainst: 0 };
+    });
+
+    cloudHistory.forEach(match => {
+        const teams = match.desc.split(' vs ');
+        const teamA = teams[0].split('/');
+        const teamB = teams[1].split('/');
+        const scores = match.score.split('-').map(Number);
+
+        [...teamA, ...teamB].forEach(name => {
+            if (!todayStats[name]) todayStats[name] = { name, wins: 0, losses: 0, games: 0, ptsFor: 0, ptsAgainst: 0 };
+            
+            const s = todayStats[name];
+            s.games++;
+            const isTeamA = teamA.includes(name);
+            const myScore = isTeamA ? scores[0] : scores[1];
+            const oppScore = isTeamA ? scores[1] : scores[0];
+            
+            if (myScore > oppScore) s.wins++; 
+            else if (myScore < oppScore) s.losses++;
+            
+            s.ptsFor += myScore;
+            s.ptsAgainst += oppScore;
+        });
+    });
+
+    return Object.values(todayStats);
+}
+
+function getAllTimeDUPR(playerName) {
+    const s = cloudStats.find(x => x.name === playerName);
+    if (!s || !s.games) return "2.00";
+    const wr = (s.wins / s.games);
+    const pd = (s.ptsFor - s.ptsAgainst) / s.games;
+    const base = 2.5 + (wr * 3.0) + (pd * 0.1);
+    const volumeFactor = Math.min(s.games / 20, 1);
+    return (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
+}
+
+function refreshStats() {
+    const currentDayStats = calculateTodayStats();
+    const sortedToday = currentDayStats.sort((a, b) => b.wins - a.wins);
+
+    // Render Main Leaderboard Table
+    document.getElementById('leaderboardBody').innerHTML = sortedToday.map((s, i) => {
+        const careerDupr = getAllTimeDUPR(s.name);
+        return `
+            <tr onclick="showPlayerCard('${s.name.replace(/'/g, "\\'")}')" style="cursor:pointer; border-bottom: solid #3d7a64">
+                <td class="rank">#${i + 1}</td>
+                <td class="player-name">${s.name}</td>
+                <td><span style="color:var(--primary)">${s.wins}W</span> - <span style="color:var(--danger)">${s.losses}L</span></td>
+                <td style="color:var(--grey); font-size: 1rem;">Today: ${s.games} Game/s</td>
+                <td><span class="dupr-badge" style="background:var(--primary-light); color:#fff; padding: 2px 8px; border-radius:4px;">${careerDupr}</span></td>
+            </tr>`;
+    }).join('') || '<tr><td colspan="5" style="text-align:center; padding:20px;">Waiting for live match data...</td></tr>';
+
+    // Update Career Rankings Column
+    const sortedAllTime = [...cloudStats]
+        .sort((a, b) => parseFloat(getAllTimeDUPR(b.name)) - parseFloat(getAllTimeDUPR(a.name)))
+        .slice(0, 10);
+
+    document.getElementById('allTimeLeaderboard').innerHTML = sortedAllTime.map((s, i) => {
+        const reliability = Math.min((s.games / 20) * 100, 100).toFixed(0);
+        const careerDupr = getAllTimeDUPR(s.name);
+        const formHtml = s.lastFive ? s.lastFive.map(f => 
+            `<span class="form-dot" style="color:${f==='W' ? 'var(--winner)' : '#ef4444'}">${f}</span>`
+        ).join('') : '<span style="color:var(--grey)">-</span>';
+
+        return `
+            <div class="stat-row-alt">
+                <div style="display:flex; justify-content:space-between; width:100%; margin-bottom: 5px;">
+                    <span>
+                        <strong style="color:var(--grey); margin-right:8px;">#${i + 1}</strong>
+                        <strong>${s.name}</strong> 
+                    </span>
+                    <b style="color:var(--primary)">${careerDupr}</b>
+                </div>
+                <div style="font-size: 0.65rem; color: var(--grey); margin-bottom: 4px;">Form: ${formHtml}</div>
+                <div style="width: 100%; font-size: 0.7rem; color: var(--grey);">
+                    Reliability: ${reliability}%
+                    <div class="reliability-bg" style="background:#eee; height:4px; width:100%; border-radius:2px;">
+                        <div class="reliability-fill" style="width: ${reliability}%; background:var(--primary); height:100%; border-radius:2px;"></div>
+                    </div>
+                </div>
+            </div>`;
+    }).join('') || '<div style="color:var(--grey)">No career records found.</div>';
+}
+
+// 4. Interaction & Image Generation
+function showPlayerCard(name) {
+    const todayData = calculateTodayStats().find(x => x.name === name);
+    if (!todayData) return;
+    document.getElementById('cardName').innerText = name;
+    document.getElementById('cardDupr').innerText = getAllTimeDUPR(name);
+    document.getElementById('cardWins').innerText = todayData.wins;
+    document.getElementById('cardLoss').innerText = todayData.losses;
+    document.getElementById('statCardOverlay').style.display = 'flex';
+}
+
+async function downloadCurrentCard() {
+    const card = document.getElementById('downloadableCard');
+    const closeBtn = document.getElementById('closeBtn');
+    const playerName = document.getElementById('cardName').innerText;
+
+    // UI Prep
+    closeBtn.style.visibility = 'hidden';
+
+    try {
+        // useCORS and allowTaint are the big fixes here
+        const canvas = await html2canvas(card, {
+            backgroundColor: '#f3f0e0',
+            scale: 3,
+            useCORS: true,
+            allowTaint: true, 
+            letterRendering: true,
+            logging: false, // Turn this to true if you want to see errors in the console
+            width: card.offsetWidth,
+            height: card.offsetHeight
+        });
+
+        const link = document.createElement('a');
+        link.download = `TPC_EliteCard_${playerName}.png`;
+        link.href = canvas.toDataURL('image/png', 1.0);
+        link.click();
+        
+    } catch (err) {
+        console.error("Capture failed:", err);
+        alert("Download failed. Try opening this in a local server (like Live Server in VS Code) or uploading the logo to a cloud host.");
+    } finally {
+        closeBtn.style.visibility = 'visible';
+        document.getElementById('statCardOverlay').style.display = 'none';
+    }
+}
+
+// Handle QR scan auto-open
+window.addEventListener('load', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const playerToView = urlParams.get('viewplayer');
+    if (playerToView) {
+        setTimeout(() => showPlayerCard(playerToView), 1000);
+    }
+});
+
+
+
+
+
+	</script>
+</body>
+</html>
