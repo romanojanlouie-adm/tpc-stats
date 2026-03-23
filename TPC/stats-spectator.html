@@ -75,22 +75,30 @@
         .history-players { font-size: 0.9rem; color: var(--grey); }
 
         @media (max-width: 900px) { .stats-grid { grid-template-columns: 1fr; } }
+		@media (max-width: 400px) {
+			.player-card-elongated {
+				/* Scale the entire card down so it fits small screens without scrolling */
+				transform: scale(0.85); 
+				margin: -40px 0; /* Offsets the empty space created by scaling */
+			}
+		}
 		
 		
 		/* Stat Card Overlay */
-		.stat-card-overlay {
-			position: fixed; /* Changed from default to fixed */
-			top: 0;
-			left: 0;
-			width: 100vw;
-			height: 100vh;
-			background: rgba(0, 0, 0, 0.9); /* Darker backdrop for focus */
-			display: none; /* Flex is required for centering */
-			justify-content: center;
-			align-items: center;
-			z-index: 2000; /* Ensure it's above your nav/header */
-			cursor: pointer;
-		}
+	.stat-card-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background: rgba(0, 0, 0, 0.9);
+		display: none;
+		justify-content: center;
+		align-items: center;
+		z-index: 2000;
+		overflow-y: auto; /* Allows vertical scroll if screen is shorter than card */
+		padding: 20px 0;
+	}
 		.player-card {
 			background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
 			width: 400px; padding: 40px; border-radius: 30px;
@@ -228,6 +236,7 @@
 			font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 			color: var(--primary);
 			text-align: center;
+			
 		}
 		
 		.card-watermark {
@@ -338,7 +347,7 @@
 			font-weight: 800;
 			font-size: 14px;
 			cursor: pointer;
-			margin-top: 20px;
+			margin-top: 5px;
 			width: 100%;
 			box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 			transition: transform 0.2s;
@@ -627,7 +636,7 @@ function showPlayerCard(name) {
 }
 
 async function downloadCurrentCard() {
-    const card = document.getElementById('downloadableCard');
+    const card = document.getElementById('statCardOverlay');
     const closeBtn = document.getElementById('closeBtn');
     const playerName = document.getElementById('cardName').innerText;
 
@@ -637,7 +646,7 @@ async function downloadCurrentCard() {
     try {
         // useCORS and allowTaint are the big fixes here
         const canvas = await html2canvas(card, {
-            backgroundColor: '#f3f0e0',
+            
             scale: 3,
             useCORS: true,
             allowTaint: true, 
