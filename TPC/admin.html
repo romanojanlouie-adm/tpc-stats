@@ -118,7 +118,7 @@
 <div class="card">
     <h3>Performance Metrics</h3>
 <select id="metricRange" onchange="loadMetrics()">
-    <option value="1">Daily (Today)</option>
+    <option value="0">Daily (Today)</option>
     <option value="7">Weekly (Last 7 Days)</option>
     <option value="30">Monthly (Last 30 Days)</option>
     <option value="999">TEST (all-time)</option>
@@ -523,30 +523,54 @@ function loadMasterData() {
 
 
 async function loadMetrics() {
-    const range = document.getElementById('metricRange').value;
-    const snapshot = await db.ref('TPC_all_players').once('value');
-    const players = snapshot.val() || {};
+    // Force the value to a number to avoid string comparison issues
+    const range = parseInt(document.getElementById('metricRange').value);
+    const display = document.getElementById('metricsDisplay');
     
-    let totalGames = 0;
-    let totalDupr = 0;
-    let playerCount = 0;
-    let aggregate = {};
+    const now = new Date();
+    // This creates the YYYY-MM-DD string for today
+    const todayStr = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    
+    let cutoffDate = new Date();
+    cutoffDate.setDate(now.getDate() - range);
+    const cutoffStr = cutoffDate.toISOString().split('T')[0];
 
-    Object.keys(players).forEach(name => {
-        const p = players[name];
-        totalGames += (p.wins + p.losses);
-        if (p.dupr) {
-            totalDupr += parseFloat(p.dupr);
-            playerCount++;
-        }
-        aggregate[name] = p;
-    });
+    try {
+        const histSnapshot = await db.ref('Historical_Metrics').once('value');
+        const histData = histSnapshot.val() || {};
+        
+        let aggregate = {};
 
-    // Update UI Cards
-    document.getElementById('metric-total-games').innerText = totalGames;
-    document.getElementById('metric-avg-dupr').innerText = playerCount > 0 ? (totalDupr / playerCount).toFixed(2) : "0.00";
+        Object.keys(histData).forEach(dateKey => {
+            let shouldInclude = false;
 
-    renderMetricsTable(aggregate);
+            if (range === 0) {
+                // If Daily, only match exactly today's date string
+                shouldInclude = (dateKey === todayStr);
+            } else if (range === 999) {
+                // If All Time, include everything
+                shouldInclude = true;
+            } else {
+                // If 7 or 30, include if the date is within the range
+                shouldInclude = (dateKey >= cutoffStr);
+            }
+
+            if (shouldInclude) {
+                // ... (rest of your aggregation logic remains the same)
+                const dayData = histData[dateKey];
+                if (dayData.sessionStats) {
+                    dayData.sessionStats.forEach(p => {
+                        if (!aggregate[p.name]) aggregate[p.name] = { wins: 0, losses: 0, games: 0 };
+                        aggregate[p.name].wins += (p.wins || 0);
+                        aggregate[p.name].losses += (p.losses || 0);
+                        aggregate[p.name].games += (p.games || 0);
+                    });
+                }
+            }
+        });
+
+        renderMetricsTable(aggregate);
+    } catch (e) { console.error(e); }
 }
 
 function renderMetricsTable(aggregate) {
