@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPC POS - Point of Sale</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #92d027; 
+            --dark-bg: #0f172a; 
+            --panel-bg: #1e293b;
+            --text: #f8fafc; 
+            --accent: #3b82f6; 
+            --danger: #ef4444; 
+            --grey: #94a3b8; 
+        }
+
+        body { 
+            background: var(--dark-bg); 
+            color: var(--text); 
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0; display: flex; height: 100vh; overflow: hidden;
+        }
+
+        /* Sidebar Navigation */
+        .pos-sidebar {
+            width: 80px; background: #000; display: flex; flex-direction: column;
+            align-items: center; padding: 20px 0; border-right: 1px solid #334155;
+        }
+        .nav-icon { 
+            width: 50px; height: 50px; border-radius: 12px; margin-bottom: 20px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            transition: 0.3s; color: var(--grey);
+        }
+        .nav-icon.active { background: var(--primary); color: #000; }
+
+        /* Main POS Grid */
+        .pos-container { display: grid; grid-template-columns: 1fr 400px; width: 100%; }
+
+        /* Catalog Section */
+        .catalog-section { padding: 30px; overflow-y: auto; }
+        .category-tabs { display: flex; gap: 15px; margin-bottom: 25px; }
+        .tab { 
+            padding: 10px 20px; border-radius: 30px; background: var(--panel-bg); 
+            cursor: pointer; font-weight: 600; border: 1px solid #334155;
+        }
+        .tab.active { background: var(--primary); color: #000; border-color: var(--primary); }
+
+        .product-grid { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); 
+            gap: 20px; 
+        }
+        .product-card {
+            background: var(--panel-bg); border-radius: 16px; padding: 15px;
+            text-align: center; cursor: pointer; transition: 0.2s; border: 1px solid transparent;
+        }
+        .product-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+        .product-img { width: 80px; height: 80px; margin-bottom: 10px; object-fit: contain; }
+        .product-price { color: var(--primary); font-weight: 800; display: block; }
+
+        /* Cart Section */
+        .cart-section { 
+            background: var(--panel-bg); border-left: 1px solid #334155;
+            display: flex; flex-direction: column;
+        }
+        .cart-header { padding: 25px; border-bottom: 1px solid #334155; }
+        .cart-items { flex-grow: 1; padding: 20px; overflow-y: auto; }
+        .cart-item {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #334155;
+        }
+        .cart-totals { padding: 25px; background: #162030; }
+        
+        .total-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .grand-total { font-size: 1.5rem; font-weight: 800; color: var(--primary); }
+
+        .btn { 
+            width: 100%; padding: 15px; border-radius: 12px; border: none; 
+            font-weight: 700; cursor: pointer; text-transform: uppercase;
+        }
+        .btn-pay { background: var(--primary); color: #000; font-size: 1.1rem; }
+        .btn-clear { background: transparent; color: var(--danger); border: 1px solid var(--danger); margin-top: 10px; }
+
+        /* Player Search Dropdown */
+        .player-select {
+            width: 100%; background: #0f172a; border: 1px solid var(--primary);
+            color: white; padding: 12px; border-radius: 8px; margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="pos-sidebar">
+    <div class="nav-icon active" onclick="switchView('register', this)">🛒</div>
+    <div class="nav-icon" onclick="switchView('history', this)">🕒</div>
+    <div class="nav-icon" onclick="switchView('inventory', this)">📦</div>
+</div>
+
+
+
+
+<div class="main-content" style="width: 100%; overflow-y: auto;">
+    
+    <div id="view-register" class="pos-container view-section">
+            
+                <div class="catalog-section">
+                    <h2 style="margin-top:0">Product Catalog</h2>
+                    <div class="category-tabs" id="categoryTabs">
+                        <div class="tab active" onclick="filterCatalog('all')">All</div>
+                        <div class="tab" onclick="filterCatalog('Plays')">Plays</div>
+                        <div class="tab" onclick="filterCatalog('Drinks')">Drinks</div>
+                        <div class="tab" onclick="filterCatalog('Gear')">Gear</div>
+                        <div class="tab" onclick="filterCatalog('Court')">Rentals</div>
+                    </div>
+
+                    <div class="product-grid" id="productGrid">
+                        <!-- Products injected by JS -->
+                    </div>
+                </div>
+
+                <div class="cart-section">
+                    <div class="cart-header">
+                        <h3>Current Order</h3>
+                        <select class="player-select" id="playerLink">
+                            <option value="">Guest Checkout</option>
+                            <!-- Linked to your manager's stats list -->
+                        </select>
+                    </div>
+
+                    <div class="cart-items" id="cartItems">
+                        <div style="color: var(--grey); text-align:center; margin-top: 50px;">Cart is empty</div>
+                    </div>
+
+                    <div class="cart-totals">
+                        <div class="total-row"><span>Subtotal</span><span id="subtotal">Php 0.00</span></div>
+                        
+                        <hr style="border: 0; border-top: 1px solid #334155; margin: 15px 0;">
+                        <div class="total-row grand-total"><span>Total</span><span id="grandTotal">Php 0.00</span></div>
+                        
+                        <button class="btn btn-pay" onclick="processPayment()">Complete Payment</button>
+                        <button class="btn btn-clear" onclick="clearCart()">Clear Cart</button>
+                    </div>
+                </div>
+            
+        </div>
+
+    <div id="view-history" class="view-section" style="display:none; padding: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+            <h2 style="margin: 0;">Transaction History</h2>
+            <button class="btn-clear" style="width: auto; padding: 8px 15px; font-size: 0.8rem;" onclick="exportHistory()">Export CSV</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;">
+            <div style="background: var(--panel-bg); padding: 20px; border-radius: 12px; border-left: 4px solid var(--primary);">
+                <small style="color: var(--grey); text-transform: uppercase; font-weight: 800;">Total Revenue</small>
+                <div id="stat-revenue" style="font-size: 1.8rem; font-weight: 800; color: var(--text);">Php 0.00</div>
+            </div>
+            <div style="background: var(--panel-bg); padding: 20px; border-radius: 12px; border-left: 4px solid var(--accent);">
+                <small style="color: var(--grey); text-transform: uppercase; font-weight: 800;">Transactions</small>
+                <div id="stat-count" style="font-size: 1.8rem; font-weight: 800; color: var(--text);">0</div>
+            </div>
+            <div style="background: var(--panel-bg); padding: 20px; border-radius: 12px; border-left: 4px solid #f59e0b;">
+                <small style="color: var(--grey); text-transform: uppercase; font-weight: 800;">Avg. Sale</small>
+                <div id="stat-avg" style="font-size: 1.8rem; font-weight: 800; color: var(--text);">Php 0.00</div>
+            </div>
+        </div>
+        
+
+        <div style="background: var(--panel-bg); padding: 20px; border-radius: 12px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end;">
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 180px;">
+                <label style="color: var(--grey); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; opacity: 0.8;">Start Date</label>
+                <input type="date" id="filterStart" class="player-select" 
+                    style="margin: 0; width: 100%; height: 40px; padding: 0 10px; border-radius: 8px; box-sizing: border-box;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 180px;">
+                <label style="color: var(--grey); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; opacity: 0.8;">End Date</label>
+                <input type="date" id="filterEnd" class="player-select" 
+                    style="margin: 0; width: 100%; height: 40px; padding: 0 10px; border-radius: 8px; box-sizing: border-box;">
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" onclick="renderHistory()" 
+                        style="width: auto; background: var(--accent); height: 40px; padding: 0 20px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer;">
+                    Apply Filter
+                </button>
+                <button class="btn" onclick="clearDateFilter()" 
+                        style="width: auto; background: rgba(255,255,255,0.05); border: 1px solid var(--grey); color: var(--grey); height: 40px; padding: 0 15px; border-radius: 8px; cursor: pointer;">
+                    Reset
+                </button>
+            </div>
+        </div>        
+
+
+
+        <div id="historyLog" style="background: var(--panel-bg); border-radius: 12px; padding: 20px; max-height: 400px; overflow-y: auto; margin-bottom: 30px;">
+         </div>
+
+
+        
+
+    </div>
+
+    <div id="view-inventory" class="view-section" style="display:none; padding: 30px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+            <h2>Inventory Management</h2>
+            <button class="btn" style="width: auto; background: var(--accent);" onclick="toggleProductForm()">+ Add New Product</button>
+        </div>
+
+        <!-- Hidden Form for Adding/Editing -->
+        <div id="productForm" style="display:none; background: var(--panel-bg); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--accent);">
+            <h3 id="formTitle">Add Product</h3>
+            <div style="display: grid; grid-template-columns: .2fr .2fr .2fr .2fr; gap: 30px; justify-items: stretch;">
+                <input type="text" id="invName" placeholder="Product Name" class="player-select">
+                <select id="invCat" class="player-select">
+                    <option value="Plays">Plays</option>
+                    <option value="Drinks">Drinks</option>
+                    <option value="Gear">Gear</option>
+                    <option value="Court">Rentals</option>
+                </select>
+                <input type="number" id="invPrice" placeholder="Price" class="player-select">
+                <input type="number" id="invStock" placeholder="Qty" class="player-select">
+            </div>
+            <button class="btn btn-pay" style="margin-top: 10px;" onclick="saveNewProduct()">Save Product</button>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; background: var(--panel-bg); border-radius: 12px;">
+            <thead>
+                <tr style="text-align: left; border-bottom: 1px solid #334155;">
+                    <th style="padding: 15px;">Product</th>
+                    <th>Stock</th>
+                    <th>Price</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="inventoryTable"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+        if (typeof firebase === 'undefined') {
+            const scriptApp = document.createElement('script');
+            scriptApp.src = "https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js";
+            document.head.appendChild(scriptApp);
+
+            const scriptDB = document.createElement('script');
+            scriptDB.src = "https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js";
+            document.head.appendChild(scriptDB);
+        }
+
+    
+    const firebaseConfig = {
+            databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+    setTimeout(() => {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        window.db = firebase.database();
+        startFirebaseSync(); // Start syncing once Firebase is ready
+    }, 1000);
+    // 1. DATA SOURCES
+    let products = JSON.parse(localStorage.getItem('upb_products')) || [
+        
+        { id: 101, name: 'Open Play', price: 150, category: 'Plays', stock:'infinite'},
+       
+    ];
+
+    let cart = [];
+    let playerList = JSON.parse(localStorage.getItem('upb_players')) || [];
+
+    // 2. RENDER FUNCTIONS
+    function renderProducts(filter = 'all') {
+        const grid = document.getElementById('productGrid');
+        grid.innerHTML = products
+            .filter(p => filter === 'all' || p.category === filter)
+            .map(p => `
+                <div class="product-card" onclick="addToCart(${p.id})">
+                    <div style="font-weight:600; margin: 5px 0;">${p.name}</div>
+                    <span class="product-price">Php ${p.price.toFixed(2)}</span>
+                </div>
+            `).join('');
+    }
+
+function renderPlayers() {
+    const select = document.getElementById('playerLink');
+    // Clear existing options except the default
+    select.innerHTML = '<option value="">Guest Checkout</option>';
+
+    // Get the most recent list from localStorage
+    const activeQueue = JSON.parse(localStorage.getItem('upb_queue')) || [];
+
+    activeQueue.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        // This links the name from your addCheckIn() logic
+        opt.textContent = `Active: ${p.name}`; 
+        select.appendChild(opt);
+    });
+}
+
+    function addToCart(id) {
+        const product = products.find(p => p.id === id);
+        const existing = cart.find(item => item.id === id);
+        
+        if (existing) {
+            existing.qty++;
+        } else {
+            cart.push({ ...product, qty: 1 });
+        }
+        updateCart();
+    }
+
+    function updateCart() {
+        const container = document.getElementById('cartItems');
+        if (cart.length === 0) {
+            container.innerHTML = '<div style="color: var(--grey); text-align:center; margin-top: 50px;">Cart is empty</div>';
+            calculateTotals(0);
+            return;
+        }
+
+        container.innerHTML = cart.map((item, idx) => `
+            <div class="cart-item">
+                <div>
+                    <b>${item.name}</b><br>
+                    <small style="color:var(--grey)">Php ${item.price.toFixed(2)} x ${item.qty}</small>
+                </div>
+                <div>
+                    <b>Php ${(item.price * item.qty).toFixed(2)}</b>
+                    <button onclick="removeFromCart(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer; margin-left:10px;">✕</button>
+                </div>
+            </div>
+        `).join('');
+        
+        const sub = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+        calculateTotals(sub);
+        renderHistory(); 
+    }
+
+    function removeFromCart(index) {
+        const item = cart[index];
+        
+        // Find the product in the master list to return the stock
+        const productIndex = products.findIndex(p => p.name === item.name);
+        if (productIndex !== -1) {
+            products[productIndex].stock += item.qty; // Give the stock back
+            saveProducts(); // This saves to LocalStorage AND Firebase (from previous step)
+        }
+
+        // Remove from the visual cart
+        cart.splice(index, 1);
+        updateCart();
+    }
+
+    function calculateTotals(sub) {
+        
+        const total = sub 
+        document.getElementById('subtotal').innerText = `Php ${sub.toFixed(2)}`;
+        
+        document.getElementById('grandTotal').innerText = `Php ${total.toFixed(2)}`;
+    }
+
+    function clearCart() {
+        cart = [];
+        updateCart();
+    }
+
+    function processPayment() {
+        if (cart.length === 0) return alert("Cart is empty!");
+
+        const player = document.getElementById('playerLink').value;
+        const total = document.getElementById('grandTotal').innerText;
+        
+        const itemsBought = cart.map(item => ({
+            name: item.name,
+            qty: item.qty,
+            price: item.price
+
+
+        }));
+
+        const newTransaction = {
+            desc: `POS Purchase: ${player || 'Guest'}`,
+            score: total,
+            timestamp: Date.now(),
+            items: itemsBought
+        };
+
+        // 1. Save to Firebase (Redundancy)
+        db.ref('upb_sales_history').push(newTransaction);
+
+        // 2. Local fallback (Optional but good for speed)
+        const data = localStorage.getItem('upb_sales_history');
+        const fullHistory = data ? JSON.parse(data) : [];
+        fullHistory.unshift(newTransaction);
+        localStorage.setItem('upb_sales_history', JSON.stringify(fullHistory));
+
+        // Clear cart and UI
+        cart = [];
+        updateCart();
+        renderHistory(); 
+        alert("Transaction Synced to Cloud!");
+        refreshPage();
+    }
+
+    
+    function filterCatalog(cat) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+        renderProducts(cat);
+
+    }
+
+    // Initialize
+    renderProducts();
+    renderPlayers();
+
+
+    window.addEventListener('storage', (e) => {
+    if (e.key === 'upb_players') { // Triggers when the queue changes
+        renderPlayers();
+    }
+});
+
+
+function switchView(viewId, element) {
+    // 1. Hide all sections
+    document.querySelectorAll('.view-section').forEach(v => v.style.display = 'none');
+    
+    // 2. Show selected section
+    document.getElementById('view-' + viewId).style.display = viewId === 'register' ? 'grid' : 'block';
+    
+    // 3. Update sidebar UI
+    document.querySelectorAll('.nav-icon').forEach(i => i.classList.remove('active'));
+    element.classList.add('active');
+
+    // 4. Refresh data if needed
+    if(viewId === 'history') renderHistory();
+    if(viewId === 'inventory') renderInventory();
+}
+
+
+function renderHistory() {
+    
+    const history = JSON.parse(localStorage.getItem('upb_sales_history')) || [];
+    const log = document.getElementById('historyLog');
+    
+    // Get filter values
+    const startVal = document.getElementById('filterStart').value;
+    const endVal = document.getElementById('filterEnd').value;
+    log.innerHTML = '';
+    // Convert to timestamps for comparison (set to start and end of day)
+    const startDate = startVal ? new Date(startVal).setHours(0,0,0,0) : null;
+    const endDate = endVal ? new Date(endVal).setHours(23,59,59,999) : null;
+
+    // Filter the history list
+    const filteredHistory = history.filter(item => {
+        const itemDate = item.timestamp;
+        if (startDate && itemDate < startDate) return false;
+        if (endDate && itemDate > endDate) return false;
+        return true;
+    });
+
+    if (filteredHistory.length === 0) {
+        log.innerHTML = "<p style='text-align:center; color:var(--grey);'>No transactions found for this period.</p>";
+        updateStats(0, 0);
+        return;
+    }
+
+    let totalRevenue = 0;
+    
+    log.innerHTML = filteredHistory.map((item, index) => {
+            const cleanNumber = item.score.replace(/[^0-9.]/g, "");
+            const numericValue = parseFloat(cleanNumber) || 0;
+            totalRevenue += numericValue;
+
+            // Generate the HTML for the list of items
+            const itemsHtml = item.items ? item.items.map(i => 
+                `<div style="font-size: 0.85rem; color: var(--grey); padding: 2px 0;">
+                    • ${i.name} (x${i.qty}) - Php ${(i.price * i.qty).toFixed(2)}
+                </div>`
+            ).join('') : 'No item details available';
+
+            return `
+                <div style="border-bottom: 1px solid #334155; padding: 15px 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleDetails(${index})">
+                        <div>
+                            <strong style="color: var(--accent);">${item.desc} ▾</strong><br>
+                            <small style="color: var(--grey)">${new Date(item.timestamp).toLocaleString()}</small>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="color: var(--primary); font-weight: 800;">${item.score}</div>
+                            <button onclick="event.stopPropagation(); deleteTransaction(${index})" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button>
+                        </div>
+                    </div>
+                    <!-- Hidden Details Section -->
+                    <div id="details-${index}" style="display: none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <div style="font-weight: 600; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 5px; color: var(--grey);">Items Purchased:</div>
+                        ${itemsHtml}
+                        <div>TOTAL: ${item.score}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        updateStats(totalRevenue, filteredHistory.length);
+}
+
+function toggleDetails(index) {
+    const detailDiv = document.getElementById(`details-${index}`);
+    if (detailDiv.style.display === 'none') {
+        detailDiv.style.display = 'block';
+    } else {
+        detailDiv.style.display = 'none';
+    }
+}
+
+function clearDateFilter() {
+    document.getElementById('filterStart').value = "";
+    document.getElementById('filterEnd').value = "";
+    renderHistory();
+}
+
+function updateStats(revenue, count) {
+    const avg = count > 0 ? (revenue / count) : 0;
+    
+    // Using toLocaleString to ensure it looks clean (e.g., 1,000.00)
+    document.getElementById('stat-revenue').innerText = `Php ${revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    document.getElementById('stat-count').innerText = count;
+    document.getElementById('stat-avg').innerText = `Php ${avg.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+}
+
+function deleteTransaction(index) {
+    if (!confirm("Are you sure you want to delete this transaction from the cloud and local history?")) return;
+
+    // 1. Get the current history from localStorage
+    const data = localStorage.getItem('upb_sales_history');
+    let historyData = data ? JSON.parse(data) : [];
+    
+    // 2. Identify the transaction to delete
+    const transactionToDelete = historyData[index];
+
+    // 3. Remove from Firebase 
+    // We search for the record with the matching timestamp
+    db.ref('upb_sales_history').once('value', (snapshot) => {
+        snapshot.forEach((childSnapshot) => {
+            if (childSnapshot.val().timestamp === transactionToDelete.timestamp) {
+                childSnapshot.ref.remove(); // This deletes it from Firebase
+            }
+        });
+    });
+
+    // 4. Remove from local array and update UI
+    historyData.splice(index, 1);
+    localStorage.setItem('upb_sales_history', JSON.stringify(historyData));
+    renderHistory();
+}
+
+
+
+// Extra: Simple CSV Export so you can open sales in Excel/Sheets
+function exportHistory() {
+    const data = localStorage.getItem('upb_sales_history');
+    let historyData = data ? JSON.parse(data) : [];
+    
+    // 1. Get the current filter values from the UI
+    const startVal = document.getElementById('filterStart').value;
+    const endVal = document.getElementById('filterEnd').value;
+
+    // 2. Filter the data just like you do in the render function
+    if (startVal || endVal) {
+        historyData = historyData.filter(item => {
+            const itemDate = new Date(item.timestamp);
+            itemDate.setHours(0, 0, 0, 0); // Reset time for accurate date comparison
+
+            if (startVal) {
+                const start = new Date(startVal);
+                start.setHours(0, 0, 0, 0);
+                if (itemDate < start) return false;
+            }
+
+            if (endVal) {
+                const end = new Date(endVal);
+                end.setHours(0, 0, 0, 0);
+                if (itemDate > end) return false;
+            }
+
+            return true;
+        });
+    }
+
+    if(historyData.length === 0) return alert("No data found for the selected date range!");
+    
+    // 3. Generate CSV from the FILTERED data
+    let csv = "Date,Description,Items,Total\n";
+    
+    historyData.forEach(transaction => {
+        const date = new Date(transaction.timestamp).toLocaleDateString();
+        const description = `"${transaction.desc}"`;
+        const total = transaction.score.replace('Php ', '').replace(',', '');
+        
+        let itemsString = "";
+        if (transaction.items && transaction.items.length > 0) {
+            itemsString = transaction.items.map(i => `${i.name} (x${i.qty})`).join('; ');
+        } else {
+            itemsString = "No details";
+        }
+
+        csv += `${date},${description},"${itemsString}",${total}\n`;
+    });
+    
+    // 4. Trigger Download
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('href', url);
+    
+    // Dynamic filename based on filters
+    const fileSuffix = (startVal || endVal) ? `_filtered` : `_full`;
+    a.setAttribute('download', `TPC_sales${fileSuffix}_${new Date().toISOString().split('T')[0]}.csv`);
+    
+    a.click();
+}
+
+function renderInventory() {
+    const table = document.getElementById('inventoryTable');
+    table.innerHTML = products.map(p => `
+        <tr style="border-bottom: 1px solid #334155;">
+            <td style="padding: 15px;">${p.name}</td>
+            <td>${p.category}</td>
+            <td>Php ${p.price.toFixed(2)}</td>
+            <td><button style="color: var(--danger); background: none; border: 1px solid var(--danger); padding: 5px 10px; border-radius: 5px; cursor: pointer;">Edit</button></td>
+        </tr>
+    `).join('');
+}
+
+function renderInventory() {
+    const table = document.getElementById('inventoryTable');
+    table.innerHTML = products.map((p, index) => `
+        <tr style="border-bottom: 1px solid #334155;">
+            <td style="padding: 15px;">${p.name}</td>
+            <td style="color: ${p.stock < 5 ? 'var(--danger)' : 'var(--text)'}; font-weight: bold;">
+                ${p.stock} units
+            </td>
+            <td>Php ${p.price.toFixed(2)}</td>
+            <td>
+                <button onclick="editProduct(${index})" style="background:none; border:none; color:var(--accent); cursor:pointer;">Edit</button> | 
+                <button onclick="deleteProduct(${index})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Remove</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function toggleProductForm() {
+    const form = document.getElementById('productForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveNewProduct() {
+    const name = document.getElementById('invName').value;
+    const cat = document.getElementById('invCat').value;
+    const price = parseFloat(document.getElementById('invPrice').value);
+    const stock = parseInt(document.getElementById('invStock').value);
+
+    if(!name || isNaN(price) || isNaN(stock)) return alert("Please fill in all details correctly.");
+
+    if (editIndex !== null) {
+        // UPDATE EXISTING
+        products[editIndex].name = name;
+        products[editIndex].category = cat;
+        products[editIndex].price = price;
+        products[editIndex].stock = stock;
+        editIndex = null; // Reset the tracker
+        alert("Product updated successfully!");
+    } else {
+        // CREATE NEW
+        products.push({
+            id: Date.now(),
+            name, category: cat, price, stock,
+        });
+    }
+
+    // Reset Form UI
+    document.getElementById('formTitle').innerText = "Add Product";
+    document.getElementById('invName').value = "";
+    document.getElementById('invPrice').value = "";
+    document.getElementById('invStock').value = "";
+    
+    saveProducts(); // Save to localStorage
+    renderInventory(); // Refresh Inventory list
+    renderProducts(); // Refresh Catalog/Shop list
+    toggleProductForm(); // Hide the form
+}
+
+function deleteProduct(index) {
+    if(confirm("Are you sure you want to remove this item?")) {
+        products.splice(index, 1);
+        saveProducts();
+        renderInventory();
+        renderProducts();
+    }
+}
+
+let editIndex = null; // Tracks if we are editing an existing item
+
+function editProduct(index) {
+    const p = products[index];
+    editIndex = index; // Set the global edit tracker
+    
+    // Fill the form with existing data
+    document.getElementById('invName').value = p.name;
+    document.getElementById('invCat').value = p.category;
+    document.getElementById('invPrice').value = p.price;
+    document.getElementById('invStock').value = p.stock;
+    
+    // Update UI
+    document.getElementById('formTitle').innerText = "Edit Product: " + p.name;
+    document.getElementById('productForm').style.display = 'block';
+    
+    // Scroll to the form so you don't miss it
+    document.getElementById('productForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+// This saves the current state of your products array to the browser's memory
+function saveProducts() {
+    // Save locally
+    localStorage.setItem('upb_products', JSON.stringify(products));
+    
+    // Save to Firebase (Overwrites the 'products' node with current state)
+    db.ref('upb_products').set(products);
+}
+
+// Add this to your page load logic to pull inventory from cloud
+db.ref('upb_products').once('value', (snapshot) => {
+    if (snapshot.exists()) {
+        products = snapshot.val();
+        renderInventory();
+        renderProducts();
+    }
+});
+
+// Start listening for cloud updates when the page loads
+function startFirebaseSync() {
+    db.ref('upb_sales_history').on('value', (snapshot) => {
+        const val = snapshot.val();
+        
+        // If there's no data, clear local and stop
+        if (!val) {
+            localStorage.setItem('upb_sales_history', JSON.stringify([]));
+            renderHistory();
+            return;
+        }
+
+        // Convert the Firebase object into an array
+        // and sort by timestamp (newest first)
+        const historyArray = Object.values(val).sort((a, b) => b.timestamp - a.timestamp);
+        
+        // CRITICAL: Overwrite the local storage entirely
+        localStorage.setItem('upb_sales_history', JSON.stringify(historyArray));
+        
+        // Refresh the UI
+        renderHistory();
+    });
+}
+
+function refreshPage() {
+    window.location.reload();
+}
+// Call this function at the bottom of your script
+startFirebaseSync();
+
+
+</script>
+
+</body>
+</html>
