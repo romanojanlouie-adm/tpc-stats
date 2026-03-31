@@ -92,12 +92,15 @@
     <div class="card">
         <h3>Performance Metrics</h3>
     <select id="metricRange" onchange="loadMetrics()">
+      
         <option value="1">Daily (Today)</option>
         <option value="7">Weekly (Last 7 Days)</option>
         <option value="30">Monthly (Last 30 Days)</option>
         <option value="999">TEST (all-time)</option>
+      
     </select>
-        <div id="metricsDisplay" style="margin-top:15px; font-size: 0.9em;">
+            
+        <div id="metricsDisplay" style="margin-top:15px; font-size: 0.9em; max-height: 350px; overflow-y: auto;">
             </div>
 
 
@@ -168,51 +171,86 @@
     });
 
     
-    async function updatePlayer(name) {
-        const getVal = (id, isNum = true) => {
-            const el = document.getElementById(id);
-            if (!el) return isNum ? 0 : '';
-            return isNum ? parseInt(el.value) || 0 : el.value;
-        };
+async function updatePlayer(oldName) {
+    // Helper inside function to avoid ReferenceErrors
+    const getVal = (id, isNum = true) => {
+        const el = document.getElementById(id);
+        if (!el) return isNum ? 0 : '';
+        return isNum ? parseInt(el.value) || 0 : el.value;
+    };
 
-        const updates = {
-            wins: getVal(`w-${name}`),
-            losses: getVal(`l-${name}`),
-            games: getVal(`g-${name}`),
-            ptsFor: getVal(`pf-${name}`),
-            ptsAgainst: getVal(`pa-${name}`),
-            lastResult: getVal(`res-${name}`, false)
-        };
+    const newName = document.getElementById(`name-${oldName}`).value.trim().toUpperCase();
+    
+    const updates = {
+        name: newName, // Store name as a string
+        wins: getVal(`w-${oldName}`),
+        losses: getVal(`l-${oldName}`),
+        games: getVal(`g-${oldName}`),
+        ptsFor: getVal(`pf-${oldName}`),
+        ptsAgainst: getVal(`pa-${oldName}`),
+        lastResult: getVal(`res-${oldName}`, false)
+    };
 
-        try {
-            // 1. Update the Master Database first
-            await db.ref('TPC_all_players/' + name).update(updates);
+    try {
+        const dbRef = db.ref('TPC_all_players');
+        const historyRef = db.ref('Historical_Metrics');
 
-            // 2. Instead of overwriting the whole session, we update ONLY that player
-            // inside the live stats of every active tablet
-            const snapshot = await db.ref('TPC_live_stats').once('value');
-            const instances = snapshot.val();
+        // CASE A: PLAYER RENAMED
+        if (newName !== oldName) {
+            if (!confirm(`Rename "${oldName}" to "${newName}"? This will update ALL historical logs.`)) return;
 
-            if (instances) {
-                const syncPromises = Object.keys(instances).map(id => {
-                    let instanceStats = instances[id].stats || [];
-                    const pIdx = instanceStats.findIndex(s => s.name === name);
+            // 1. Update Master Database (Create new key, delete old)
+            await dbRef.child(newName).set(updates);
+            await dbRef.child(oldName).remove();
 
-                    if (pIdx !== -1) {
-                        // Update only the specific player at their specific index
-                        return db.ref(`TPC_live_stats/${id}/stats/${pIdx}`).update(updates);
+            // 2. Update Historical Metrics
+            const histSnap = await historyRef.once('value');
+            const history = histSnap.val();
+            if (history) {
+                const historyPromises = [];
+                Object.keys(history).forEach(date => {
+                    // Check if player exists on this date's log
+                    if (history[date][oldName]) {
+                        const dailyData = history[date][oldName];
+                        if(dailyData.name) dailyData.name = newName; // update internal name field
+                        
+                        // Copy to new name key, remove old
+                        historyPromises.push(historyRef.child(`${date}/${newName}`).set(dailyData));
+                        historyPromises.push(historyRef.child(`${date}/${oldName}`).remove());
                     }
-                    return Promise.resolve();
                 });
-                await Promise.all(syncPromises);
+                await Promise.all(historyPromises);
             }
-
-            alert(`Successfully synced ${name} to all devices.`);
-        } catch (err) {
-            console.error("Critical Sync Failure:", err);
-            alert("Update failed. See console for details.");
+            alert("Renamed and historical logs migrated!");
+        } 
+        
+        // CASE B: NORMAL UPDATE (Stats only)
+        else {
+            await dbRef.child(oldName).update(updates);
+            alert(`Stats updated for ${oldName}`);
         }
+
+        // 3. Sync to live tablet sessions
+        const snapshot = await db.ref('TPC_live_stats').once('value');
+        const instances = snapshot.val();
+        if (instances) {
+            const syncPromises = Object.keys(instances).map(id => {
+                let instanceStats = instances[id].stats || [];
+                const pIdx = instanceStats.findIndex(s => s.name === oldName);
+                if (pIdx !== -1) {
+                    return db.ref(`TPC_live_stats/${id}/stats/${pIdx}`).update(updates);
+                }
+                return Promise.resolve();
+            });
+            await Promise.all(syncPromises);
+        }
+
+        location.reload(); // Refresh to update DOM IDs
+    } catch (err) {
+        console.error("Critical Failure:", err);
+        alert("Update failed. See console.");
     }
+}
 
     async function sendBroadcast() {
         const msg = document.getElementById('broadcastMsg').value;
@@ -461,7 +499,9 @@ function loadMasterData() {
 
                 tbody.innerHTML += `
                     <tr class="player-row">
-                        <td class="p-name" style="font-weight:bold;">${name}</td>
+                        <td class="p-name">
+                            <input type="text" id="name-${name}" value="${name}" style="font-weight:bold; border:none; background:transparent; width:120px; color:#1A4335; text-transform: uppercase;">
+                        </td>
                         <td><input type="number" id="w-${name}" value="${p.wins || 0}"></td>
                         <td><input type="number" id="l-${name}" value="${p.losses || 0}"></td>
                         <td><input type="number" id="g-${name}" value="${p.games || 0}"></td>
@@ -469,7 +509,8 @@ function loadMasterData() {
                         <td><input type="number" id="pa-${name}" value="${p.ptsAgainst || 0}"></td>
                         <td style="font-weight:bold; color:#1A4335;">${dupr.toFixed(2)}</td>
                         <td><input type="text" id="res-${name}" value="${p.lastResult || ''}" style="width:70px"></td>
-                        <td><button class="btn" style="background:#528B71; color:white; padding:5px 10px;" onclick="updatePlayer('${name}')">SAVE</button></td>
+                        <td><button class="btn" style="background:#528B71; color:white; padding:5px 10px;" onclick="updatePlayer('${name}')">SAVE</button> <button class="btn" style="background:#528B71; color:white; padding:5px 10px;" onclick="deletePlayer('${name}')">DELETE</button></td>
+                        
                     </tr>`;
             }
 
@@ -604,7 +645,7 @@ function renderMetricsTable(aggregate, filterType = 'day') {
     let html = `
         <table style="width:100%; border-collapse: collapse; margin-top: 10px; color: #1A4335;">
             <thead>
-                <tr style="background-color: #528B71; color: white;">
+                <tr style="background-color: #528B71; color: white; top: 0; position: sticky;">
                     <th style="padding: 12px; text-align: left;">Player</th>
                     <th style="padding: 12px;">Wins</th>
                     <th style="padding: 12px;">Losses</th>
@@ -638,6 +679,39 @@ function renderMetricsTable(aggregate, filterType = 'day') {
     display.innerHTML = html;
 }
 
+
+
+async function deletePlayer(name) {
+    if (!confirm(`Permanently delete ${name}? This cannot be undone.`)) return;
+
+    try {
+        // 1. Remove from Master Database
+        await db.ref('TPC_all_players/' + name).remove();
+
+        // 2. Remove from any Live Tablet Sessions
+        const snapshot = await db.ref('TPC_live_stats').once('value');
+        const instances = snapshot.val();
+        if (instances) {
+            const syncPromises = Object.keys(instances).map(id => {
+                let instanceStats = instances[id].stats || [];
+                const pIdx = instanceStats.findIndex(s => s.name === name);
+                if (pIdx !== -1) {
+                    // Remove the player from the array at that index
+                    instanceStats.splice(pIdx, 1);
+                    return db.ref(`TPC_live_stats/${id}/stats`).set(instanceStats);
+                }
+                return Promise.resolve();
+            });
+            await Promise.all(syncPromises);
+        }
+
+        alert(`${name} has been deleted.`);
+        location.reload();
+    } catch (err) {
+        console.error("Delete failed:", err);
+        alert("Error deleting player.");
+    }
+}
 
     loadMasterData();
     loadLiveInstances();
