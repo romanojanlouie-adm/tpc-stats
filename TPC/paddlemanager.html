@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
 	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <meta charset="UTF-8">
@@ -213,6 +217,7 @@
         </div>
         
         <div style="display: flex; gap: 12px; margin-left: auto; margin-right: 2.5%;">
+            <button class="btn" style="width:auto; padding: 8px 18px; background: var(--danger);" onclick="stopAllSpeech()">🛑 STOP ANNOUNCEMENTS</button>
 			<div class="stat-pill">Players: <strong id="playerTotal">0</strong></div>
             <div class="stat-pill">On Queue: <strong id="queueTotal">0</strong></div>
             <div class="stat-pill">On Court: <strong id="activePlayers">0</strong></div>
@@ -453,39 +458,67 @@ async function addCheckIn() {
 }
 
     function matchmake(type = 'balanced') {
+        // 1. Basic Validation
         if (players.length < 4) return announce("Notice. We need four players in the queue.");
         const court = courts.find(c => c.status === 'empty');
         if (!court) return announce("Notice. All courts are full.");
 
-        // Wait-Time Priority (anyone waiting > 15 mins)
-        players.sort((a, b) => {
-            const waitA = Date.now() - a.joined;
-            const waitB = Date.now() - b.joined;
-            return (waitA > 900000) ? -1 : 0;
-        });
-
+        // 2. Define the "Fairness Pool"
+        // We only consider the top 10 people in the queue to prevent 
+        // someone at the very back from jumping to the front.
+        const poolSize = Math.min(players.length, 10);
+        const pool = players.slice(0, poolSize);
         let selected = [];
-        let label = (type === 'balanced') ? 'Standard Match' : (type === 'winners' ? 'Winners Match' : 'Losers Match');
+        let matchLabel = "";
 
-        if (type === 'balanced') {
-            selected = players.splice(0, 4);
-        } else {
+        if (type === 'winners' || type === 'losers') {
             const target = type === 'winners' ? 'winner' : 'loser';
-            const candidates = players.filter(p => getPStats(p.name).lastResult === target);
-            if (candidates.length < 2) return announce(`Notice. Not enough players for priority match.`);
-            candidates.slice(0, 4).forEach(cand => {
-                const idx = players.findIndex(p => p.name === cand.name);
-                if (idx !== -1) selected.push(players.splice(idx, 1)[0]);
+            // Find players in the pool who match the result
+            const candidates = pool.filter(p => {
+                const stats = getPStats(p.name);
+                return stats && stats.lastResult === target;
             });
-            while (selected.length < 4 && players.length > 0) selected.push(players.splice(0, 1)[0]);
+
+            if (candidates.length >= 4) {
+                // Perfect match: 4 winners or 4 losers found in the top 10
+                selected = candidates.slice(0, 4);
+                matchLabel = type === 'winners' ? "Winners Match" : "Losers Match";
+            } else if (candidates.length >= 2) {
+                // Partial match: Take the winners/losers and fill with longest-waiters
+                selected = [...candidates];
+                const remaining = pool.filter(p => !selected.includes(p));
+                selected.push(...remaining.slice(0, 4 - selected.length));
+                matchLabel = "Priority Match";
+            } else {
+                // Not enough candidates in the top 10; fallback to balanced
+                return announce(`Notice. Not enough ${type} in the front of the queue. Please use standard match.`);
+            }
+        } else {
+            // Default: Balanced / Standard Match
+            selected = pool.slice(0, 4);
+            matchLabel = "Standard Match";
         }
 
-        selected.sort((a, b) => getWR(b.name) - getWR(a.name));
+        // 3. Remove selected players from the global queue
+        selected.forEach(sel => {
+            const idx = players.findIndex(p => p.name === sel.name);
+            if (idx !== -1) players.splice(idx, 1);
+        });
+
+        // 4. Team Balancing using DUPR
+        // Sort by Est. DUPR instead of WR for better accuracy
+        selected.sort((a, b) => parseFloat(getEstDUPR(b.name)) - parseFloat(getEstDUPR(a.name)));
+
+        // Pairs: (1st + 4th) vs (2nd + 3rd)
         court.players = [selected[0], selected[3], selected[1], selected[2]];
+        
+        // 5. Initialize Court State
         court.status = 'playing';
-        court.matchType = label;
+        court.matchType = matchLabel;
         court.startTime = Date.now();
-        court.scoreA = 0; court.scoreB = 0; court.timeLeft = 900; 
+        court.scoreA = 0; 
+        court.scoreB = 0; 
+        court.timeLeft = 900; 
         court.timerActive = false; 
         
         announcePlayers(court.id, court.players);
@@ -493,6 +526,8 @@ async function addCheckIn() {
     }
 
     function finishMatch(courtId) {
+
+        
         // 0. Snapshot for Undo
         lastSnapshot = JSON.parse(JSON.stringify({ players, stats, history, courts, teams }));
         document.getElementById('undoBtn').style.display = 'block';
@@ -571,7 +606,7 @@ async function addCheckIn() {
         c.players = [];
         c.scoreA = 0;
         c.scoreB = 0;
-        c.startTime = null; 
+        c.startTime = 0; 
         c.matchType = '';
 
         saveAndRender();
@@ -757,7 +792,20 @@ function saveAndRender() {
         if(part==='m') m = parseInt(val) || 0; else s = parseInt(val) || 0;
         c.timeLeft = (m*60)+s;
     }
-    function addCourt() { courts.push({ id: courts.length+1, status:'empty', players:[], scoreA:0, scoreB:0, timeLeft:900, timerActive:false, matchType:'' }); saveAndRender(); }
+    function addCourt() { 
+        courts.push({ 
+            id: courts.length + 1, 
+            name: `COURT ${courts.length + 1}`, // Add this default name
+            status: 'empty', 
+            players: [], 
+            scoreA: 0, 
+            scoreB: 0, 
+            timeLeft: 900, 
+            timerActive: false, 
+            matchType: '' 
+        }); 
+        saveAndRender(); 
+    }
     function removeCourt(id) { if(confirm("Delete Court?")) { courts = courts.filter(c=>c.id!==id); saveAndRender(); } }
     function resetSystem() { if(confirm("Reset Everything?")) { localStorage.clear(); location.reload(); } }
 
@@ -1074,8 +1122,28 @@ function saveAndRender() {
         });
     }
 
+    function stopAllSpeech() {
+        // 1. Force the browser to stop current speech immediately
+        window.speechSynthesis.cancel();
+
+        // 2. Clear your custom queue so no pending announcements play
+        announcementQueue = [];
+
+        // 3. Reset your internal state flag
+        isSpeaking = false;
+
+        console.log("Speech synthesis cleared and queue emptied.");
+    }
+
     
     saveAndRender();
+
+    setInterval(() => {
+        renderQueue();
+       
+        document.getElementById('queueTotal').innerText = players.length;
+    }, 60000);
+
 </script>
 </body>
 </html>
