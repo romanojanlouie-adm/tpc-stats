@@ -35,7 +35,7 @@
             margin: 0; padding: 40px;
         }
 
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { margin: 0 auto; }
 
         header { 
             display: flex; justify-content: space-between; align-items: center;
@@ -127,8 +127,12 @@
 				font-size: 1.8rem !important;
 			}
 		}
-		
-		
+		.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; }
+        .panel { 
+            background: var(--panel-bg); padding: 20px; border-radius: 16px; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); margin-bottom: 20px; 
+            border: 1px solid rgba(255,255,255,0.05);
+        }		
 	
 		.stat-row-alt { 
 			display: flex; 
@@ -234,8 +238,13 @@
 			overflow: hidden;
 			box-shadow: 0 20px 40px rgba(0,0,0,0.4);
 			font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-			color: var(--primary);
+			color: var(--winner); /* text */
 			text-align: center;
+			background:linear-gradient(rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.9)), 
+					url('https://lh3.googleusercontent.com/u/0/d/15UICAjTt-zrSmrd2taWCFEokpxiugArg');
+			background-position: center;
+			
+			
 			
 		}
 		
@@ -354,39 +363,131 @@
 		}
 
 		.download-btn-ui:hover { transform: scale(1.02); }
+
+/* Enhanced Court Cards */
+.court-card {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(146, 208, 39, 0.2);
+    border-radius: 20px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.court-card.active {
+    border-color: var(--primary);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    background: var(--panel-bg);
+}
+
+.match-type-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+    display: inline-block;
+}
+
+.match-std { background: var(--primary-light); color: white; }
+.match-win { background: var(--winner); color: white; }
+.match-los { background: var(--danger); color: white; }
+
+.court-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.team-box {
+    flex: 1;
+    text-align: center;
+}
+
+.player-match-name {
+    display: block;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: white;
+}
+
+.vs-circle {
+    width: 30px;
+    height: 30px;
+    background: var(--dark-bg);
+    border: 1px solid var(--primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.vacant-text {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--grey);
+    font-weight: 700;
+    letter-spacing: 2px;
+    opacity: 0.5;
+}
+		
     </style>
 </head>
 <body>
+	<div class="container">
+		<div class="card" style="margin-bottom: 2rem;">
+			<h2 style="color: var(--primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 10px;">
+				<span class="live-indicator"></span> LIVE COURTS
+			</h2>
+			<div id="courtsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+				</div>
+		</div>
 
-<div class="container">
-    <header>
-        <div>
-            <h1>PLAYER LEADERBOARD</h1>
-            <div class="live-indicator"><div class="dot"></div> LIVE SYSTEM STATS</div>
-        </div>
-    </header>
+		<div class="card" style="margin-bottom: 2rem;">
+					<h2 style="color: var(--primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 10px;">
+						<span class="live-indicator"></span>Waiting Queue</h2>
+					<div id="queueList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;"></div>
+							
+		</div>
+	</div>
+		<div class="container">
+			<header>
+				<div>
+					<h1>PLAYER LEADERBOARD</h1>
+					<div class="live-indicator"><div class="dot"></div> LIVE SYSTEM STATS</div>
+				</div>
+			</header>
 
-    <div class="stats-grid">
-        <div class="card">
-            <h2>Today's Top Performers</h2>
-			
-            <table>
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Player</th>
-                        <th>Win/Loss</th>
-                        <th>Games played</th>
-                        <th>Est. DUPR</th>
-                    </tr>
-                </thead>
-                <tbody id="leaderboardBody"></tbody>
-            </table>
-        </div>
+			<div class="stats-grid">
+				<div class="card">
+					<h2>Today's Top Performers</h2>
+					
+					<table>
+						<thead>
+							<tr>
+								<th>Rank</th>
+								<th>Player</th>
+								<th>Win/Loss</th>
+								<th>Games played</th>
+								<th>Est. DUPR</th>
+							</tr>
+						</thead>
+						<tbody id="leaderboardBody"></tbody>
+					</table>
+				</div>
 
-        <div class="card"><h2>All-Time Rankings</h2> <div id="allTimeLeaderboard"></div> </div>
-    </div>
-</div>
+				<div class="card"><h2>All-Time Rankings</h2> <div id="allTimeLeaderboard"></div> </div>
+			</div>
+		</div>
 
 
 		<div id="statCardOverlay" class="stat-card-overlay" onclick="this.style.display='none'">
@@ -441,7 +542,7 @@
 			</div>
 		</div>
 
-	<script>
+<script>
 // 1. Firebase Configuration
 const firebaseConfig = {
     databaseURL: "https://pickleball-da143-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -450,11 +551,17 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 // Global variables to store the synced data from the Cloud
-let cloudHistory = [];
-let cloudStats = [];
-let cloudQueue = [];
-let cloudCourts = [];
-
+    let stats = JSON.parse(localStorage.getItem('upb_stats')) || []; 
+    let history = JSON.parse(localStorage.getItem('upb_history')) || [];
+    let teams = JSON.parse(localStorage.getItem('upb_teams')) || [];
+	let cloudHistory = [];
+	let cloudStats = [];
+	let cloudQueue = [];
+	let cloudCourts = [];
+	let players = JSON.parse(localStorage.getItem('upb_queue')) || [];
+	let courts = JSON.parse(localStorage.getItem('upb_courts')) || [
+			{ id: 1, status: 'empty', players: [], scoreA: 0, scoreB: 0, timeLeft: 900, timerActive: false, matchType: '' }
+		];
 
 // 2. THE SYNC ENGINE: Merging multiple device instances
 db.ref('TPC_live_stats').on('value', (snapshot) => {
@@ -462,7 +569,8 @@ db.ref('TPC_live_stats').on('value', (snapshot) => {
     
     if (allDevicesData) {
         console.log("Cloud Update Received (Merged):", new Date().toLocaleTimeString());
-        
+        renderCourts();
+		renderQueue();
         // Reset global arrays before merging fresh data
         cloudHistory = [];
         cloudStats = [];
@@ -576,7 +684,8 @@ function getAllTimeDUPR(playerName) {
 function refreshStats() {
     const currentDayStats = calculateTodayStats();
     const sortedToday = currentDayStats.sort((a, b) => b.wins - a.wins);
-
+	renderCourts();
+	renderQueue();
     // Render Main Leaderboard Table
     document.getElementById('leaderboardBody').innerHTML = sortedToday.map((s, i) => {
         const careerDupr = getAllTimeDUPR(s.name);
@@ -680,9 +789,94 @@ window.addEventListener('load', () => {
 });
 
 
+function renderCourts() {
+    const container = document.getElementById('courtsContainer');
+    container.innerHTML = courts.map(c => {
+        const isActive = c.status === 'playing';
+        const badgeClass = c.matchType === 'Winners Match' ? 'match-win' : 
+                          (c.matchType === 'Losers Match' ? 'match-los' : 'match-std');
+
+        return `
+        <div class="court-card ${isActive ? 'active' : ''}">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <span style="font-size: 0.7rem; font-weight:800; color:var(--grey)">COURT ${c.id}</span>
+                ${isActive ? `<div class="match-type-badge ${badgeClass}">${c.matchType}</div>` : ''}
+            </div>
+
+            ${isActive ? `
+                <div class="court-display">
+                    <div class="team-box">
+                        <span class="player-match-name">${c.players[0].name}</span>
+                        <span class="player-match-name">${c.players[1].name}</span>
+                    </div>
+
+                    <div class="vs-circle">VS</div>
+
+                    <div class="team-box">
+                        <span class="player-match-name">${c.players[2].name}</span>
+                        <span class="player-match-name">${c.players[3].name}</span>
+                    </div>
+                </div>
+            ` : `
+                <div class="vacant-text">
+                    <span style="border: 1px solid rgba(148, 163, 184, 0.2); padding: 8px 20px; border-radius: 12px;">VACANT</span>
+                </div>
+            `}
+        </div>
+        `;
+    }).join('');
+}
 
 
+function renderQueue() {
+		document.getElementById('queueList').innerHTML = players.map((p, i) => {
+			const rel = getReliability(p.name);
+			return `
+			<div class="panel">
+			<div class="stat-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+				<div style="display:flex; justify-content:space-between; width:100%;">
+					<b>${p.name}</b>
+					
+				</div>
+				<div style="font-size: 0.75rem; color: var(--primary);">EST DUPR: ${getEstDUPR(p.name)}</div>
+				<div style="font-size: 0.7rem; color: var(--grey); width: 100%;">
+					Wait: ${Math.floor((Date.now() - p.joined)/60000)}m | Rel: ${rel}%
+					<div style="width: 100%; background: grey; height: 3px; border-radius: 2px; margin-top: 2px;">
+						<div style="width: ${rel}%; background: var(--winner); height: 100%;"></div>
+					</div>
+				</div>
+			</div>
+			</div>`;
+		}).join('');
+	}
 
+	function getReliability(name) {
+			const s = getPStats(name);
+			return Math.min((s.games / 20) * 100, 100).toFixed(0);
+		}
+
+	function getPStats(name) {
+			let s = stats.find(x => x.name === name);
+			if (!s) {
+				s = { name, wins: 0, losses: 0, draws: 0, games: 0, streak: 0, maxStreak: 0, ptsFor: 0, ptsAgainst: 0, lastFive: [] };
+				stats.push(s);
+			}
+			return s;
+		}
+
+    function getWR(name) {
+        const s = getPStats(name);
+        return s.games === 0 ? 0 : ((s.wins / s.games) * 100).toFixed(1);
+    }
+
+    function getEstDUPR(name) {
+        const s = getPStats(name);
+        const wr = parseFloat(getWR(name)) / 100;
+        const pd = s.games > 0 ? (s.ptsFor - s.ptsAgainst) / s.games : 0;
+        const base = 2.5 + (wr * 3.0) + (pd * 0.1);
+        const volumeFactor = Math.min(s.games / 20, 1);
+        return (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
+    }	
 	</script>
 </body>
 </html>
