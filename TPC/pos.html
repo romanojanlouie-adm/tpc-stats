@@ -137,6 +137,23 @@
                     <div class="cart-totals">
                         <div class="total-row"><span>Subtotal</span><span id="subtotal">Php 0.00</span></div>
                         
+                        <div class="total-row" style="margin-top: 15px;">
+                            <span>Cash Received</span>
+                            <input type="number" id="cashReceived" class="player-select" 
+                                style="width: 120px; margin: 0; padding: 5px; text-align: right;" 
+                                placeholder="0.00" oninput="calculateChange()">
+                        </div>
+                        <div class="total-row" style="margin-bottom: 15px;">
+                            <span>Payment Method</span>
+                            <select id="paymentMethod" class="player-select" style="width: 80px; margin: 0; padding: 5px; text-align: right;">
+                                <option value="Cash">Cash</option>
+                                <option value="G-Cash">G-Cash</option>
+                            </select>
+                        </div>
+                        <div class="total-row" style="color: var(--grey); font-size: 0.9rem;">
+                            <span>Change</span>
+                            <span id="changeAmount">Php 0.00</span>
+                        </div>
                         <hr style="border: 0; border-top: 1px solid #334155; margin: 15px 0;">
                         <div class="total-row grand-total"><span>Total</span><span id="grandTotal">Php 0.00</span></div>
                         
@@ -290,17 +307,23 @@
 
 function renderPlayers() {
     const select = document.getElementById('playerLink');
-    // Clear existing options except the default
     select.innerHTML = '<option value="">Guest Checkout</option>';
 
-    // Get the most recent list from localStorage
     const activeQueue = JSON.parse(localStorage.getItem('upb_queue')) || [];
 
     activeQueue.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.name;
-        // This links the name from your addCheckIn() logic
-        opt.textContent = `Active: ${p.name}`; 
+        
+        // Add a visual indicator if they are already paid
+        const paidStatus = p.status === "Paid" ? "✅ PAID" : "⏳ UNPAID";
+        opt.textContent = `${p.name} (${paidStatus})`; 
+        
+        // Optional: Change color or style for paid players
+        if (p.status === "Paid") {
+            opt.style.color = "var(--primary)";
+        }
+        
         select.appendChild(opt);
     });
 }
@@ -368,46 +391,77 @@ function renderPlayers() {
 
     function clearCart() {
         cart = [];
+        document.getElementById('cashReceived').value = ""; // Clear cash input
+        document.getElementById('changeAmount').innerText = "Php 0.00"; // Reset change
         updateCart();
     }
 
     function processPayment() {
         if (cart.length === 0) return alert("Cart is empty!");
-
-        const player = document.getElementById('playerLink').value;
-        const total = document.getElementById('grandTotal').innerText;
         
+        const cash = parseFloat(document.getElementById('cashReceived').value) || 0;
+        const totalText = document.getElementById('grandTotal').innerText;
+        const total = parseFloat(totalText.replace(/[^0-9.]/g, "")) || 0;
+
+        if (cash < total) {
+            return alert("Amount received is less than the total!");
+        }
+
+        const player = document.getElementById('playerLink').value; 
+        
+        if (player) {
+            // 1. Update Local Storage
+            let activeQueue = JSON.parse(localStorage.getItem('upb_queue')) || [];
+            const playerIndex = activeQueue.findIndex(p => p.name === player);
+            
+            if (playerIndex !== -1) {
+                activeQueue[playerIndex].status = "Paid"; 
+                localStorage.setItem('upb_queue', JSON.stringify(activeQueue));
+                
+                // 2. Update Firebase (Using 'PLAYERS_PATH' to match the Manager listener)
+                // Setting the entire array ensures the .on('value') listener triggers properly
+                db.ref('PLAYERS_PATH').set(activeQueue)
+                    .then(() => {
+                        console.log("Sync successful: Player marked as paid in cloud.");
+                        // Optional: Clear cart or show success message here
+                    })
+                    .catch(err => console.error("Firebase Sync Error:", err));
+            }
+        }
+        // ---------------------------------------
+
         const itemsBought = cart.map(item => ({
             name: item.name,
             qty: item.qty,
             price: item.price
-
-
         }));
 
         const newTransaction = {
             desc: `POS Purchase: ${player || 'Guest'}`,
-            score: total,
+            method: document.getElementById('paymentMethod').value,
+            score: totalText,
+            cashPaid: `Php ${cash.toFixed(2)}`,
+            changeGiven: `Php ${(cash - total).toFixed(2)}`,
             timestamp: Date.now(),
-            items: itemsBought
+            items: itemsBought,
+            customerName: player || 'Guest'
         };
 
-        // 1. Save to Firebase (Redundancy)
         db.ref('upb_sales_history').push(newTransaction);
 
-        // 2. Local fallback (Optional but good for speed)
+        // Save locally
         const data = localStorage.getItem('upb_sales_history');
         const fullHistory = data ? JSON.parse(data) : [];
         fullHistory.unshift(newTransaction);
         localStorage.setItem('upb_sales_history', JSON.stringify(fullHistory));
 
-        // Clear cart and UI
-        cart = [];
-        updateCart();
-        renderHistory(); 
-        alert("Transaction Synced to Cloud!");
+        alert(`Payment Complete! ${player ? player + ' marked as Paid.' : ''}`);
+        clearCart();
+        renderHistory();
         refreshPage();
     }
+
+
 
     
     function filterCatalog(cat) {
@@ -492,6 +546,9 @@ function renderHistory() {
                     <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleDetails(${index})">
                         <div>
                             <strong style="color: var(--accent);">${item.desc} ▾</strong><br>
+                            <span style="font-size: 0.7rem; background: #334155; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">
+                                ${item.method || 'Cash'}
+                            </span><br>
                             <small style="color: var(--grey)">${new Date(item.timestamp).toLocaleString()}</small>
                         </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
@@ -598,10 +655,11 @@ function exportHistory() {
     if(historyData.length === 0) return alert("No data found for the selected date range!");
     
     // 3. Generate CSV from the FILTERED data
-    let csv = "Date,Description,Items,Total\n";
+    let csv = "Date,Description,Method,Items,Total\n";
     
     historyData.forEach(transaction => {
         const date = new Date(transaction.timestamp).toLocaleDateString();
+        const method = transaction.method || "Cash";
         const description = `"${transaction.desc}"`;
         const total = transaction.score.replace('Php ', '').replace(',', '');
         
@@ -612,7 +670,7 @@ function exportHistory() {
             itemsString = "No details";
         }
 
-        csv += `${date},${description},"${itemsString}",${total}\n`;
+        csv += `${date},${description},${method},"${itemsString}",${total}\n`;
     });
     
     // 4. Trigger Download
@@ -772,7 +830,24 @@ function startFirebaseSync() {
 function refreshPage() {
     window.location.reload();
 }
-// Call this function at the bottom of your script
+
+
+function calculateChange() {
+    const totalText = document.getElementById('grandTotal').innerText;
+    const total = parseFloat(totalText.replace(/[^0-9.]/g, "")) || 0;
+    const cash = parseFloat(document.getElementById('cashReceived').value) || 0;
+    
+    const change = cash - total;
+    const changeDisplay = document.getElementById('changeAmount');
+    
+    if (change < 0) {
+        changeDisplay.innerText = "Insufficient Cash";
+        changeDisplay.style.color = "var(--danger)";
+    } else {
+        changeDisplay.innerText = `Php ${change.toFixed(2)}`;
+        changeDisplay.style.color = "var(--primary)";
+    }
+}
 startFirebaseSync();
 
 
