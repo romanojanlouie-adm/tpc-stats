@@ -4,7 +4,7 @@
 	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 	<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-	<script src="./qrcode.min.js"></script>
+	
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Stats - TPC</title>
@@ -467,7 +467,7 @@
 				</div>
 			</header>
 
-			<div class="stats-grid">
+			<div class="stats-grid" style="margin-bottom: 2rem;">
 				<div class="card">
 					<h2>Today's Top Performers</h2>
 					
@@ -486,6 +486,25 @@
 				</div>
 
 				<div class="card"><h2>All-Time Rankings</h2> <div id="allTimeLeaderboard"></div> </div>
+			</div>
+		</div>
+
+		<div class="card" style="padding: 0; overflow: hidden; margin-bottom: 2rem;">
+			<h2 style="color: var(--primary); padding: 20px 20px 10px 20px; border: none;"> DAILY SCHEDULE</h2>
+			<div style="overflow-x: auto;">
+				<table style="width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.8rem;">
+					<thead style="background-color: var(--primary-green); color: white;">
+						<tr>
+							<th style="padding: 12px; text-align: center; width: 180px; border-right: 1px solid rgba(255,255,255,0.1);">TIME</th>
+							<th style="padding: 12px; text-align: center; border-right: 1px solid rgba(255,255,255,0.1);">COURT 1</th>
+							<th style="padding: 12px; text-align: center; border-right: 1px solid rgba(255,255,255,0.1);">COURT 2</th>
+							<th style="padding: 12px; text-align: center; border-right: 1px solid rgba(255,255,255,0.1);">COURT 3</th>
+							<th style="padding: 12px; text-align: center;">COURT 4</th>
+						</tr>
+					</thead>
+					<tbody id="visualScheduleBody" style="background-color: rgba(255,255,255,0.02);">
+						</tbody>
+				</table>
 			</div>
 		</div>
 
@@ -569,13 +588,13 @@ db.ref('TPC_live_stats').on('value', (snapshot) => {
     
     if (allDevicesData) {
         console.log("Cloud Update Received (Merged):", new Date().toLocaleTimeString());
-        renderCourts();
-		renderQueue();
+        
         // Reset global arrays before merging fresh data
         cloudHistory = [];
         cloudStats = [];
         cloudQueue = [];
         cloudCourts = [];
+		
 
         // Temporary maps to merge stats and players without duplicates
         const mergedStatsMap = {};
@@ -592,12 +611,14 @@ db.ref('TPC_live_stats').on('value', (snapshot) => {
             // 2. Merge Courts (showing all active courts from all laptops)
             if (device.courts) {
                 cloudCourts = cloudCourts.concat(device.courts);
+				courts = cloudCourts;
             }
 
             // 3. Merge Queue (data.players)
             if (device.players) {
                 cloudQueue = cloudQueue.concat(device.players);
             }
+
 
             // 4. Merge Career Stats (Totaling wins/losses for the same player name)
             if (device.stats) {
@@ -619,9 +640,15 @@ db.ref('TPC_live_stats').on('value', (snapshot) => {
 
         // Convert merged stats map back into the cloudStats array
         cloudStats = Object.values(mergedStatsMap);
-        
+        allHistory = cloudHistory;
+		courts = cloudCourts;
+		
+		
         // Trigger the UI refresh with the combined data
         refreshStats();
+		renderCourts();
+		renderQueue();
+		
     }
 });
 
@@ -686,6 +713,7 @@ function refreshStats() {
     const sortedToday = currentDayStats.sort((a, b) => b.wins - a.wins);
 	renderCourts();
 	renderQueue();
+	
     // Render Main Leaderboard Table
     document.getElementById('leaderboardBody').innerHTML = sortedToday.map((s, i) => {
         const careerDupr = getAllTimeDUPR(s.name);
@@ -729,6 +757,7 @@ function refreshStats() {
                 </div>
             </div>`;
     }).join('') || '<div style="color:var(--grey)">No career records found.</div>';
+	
 }
 
 // 4. Interaction & Image Generation
@@ -825,30 +854,44 @@ function renderCourts() {
         </div>
         `;
     }).join('');
+	
 }
 
 
 function renderQueue() {
-		document.getElementById('queueList').innerHTML = players.map((p, i) => {
-			const rel = getReliability(p.name);
-			return `
-			<div class="panel">
-			<div class="stat-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-				<div style="display:flex; justify-content:space-between; width:100%;">
-					<b>${p.name}</b>
-					
-				</div>
-				<div style="font-size: 0.75rem; color: var(--primary);">EST DUPR: ${getEstDUPR(p.name)}</div>
-				<div style="font-size: 0.7rem; color: var(--grey); width: 100%;">
-					Wait: ${Math.floor((Date.now() - p.joined)/60000)}m | Rel: ${rel}%
-					<div style="width: 100%; background: grey; height: 3px; border-radius: 2px; margin-top: 2px;">
-						<div style="width: ${rel}%; background: var(--winner); height: 100%;"></div>
-					</div>
-				</div>
-			</div>
-			</div>`;
-		}).join('');
-	}
+    const queueList = document.getElementById('queueList');
+    if (!queueList) return;
+
+    // Check if players exists and has items
+    if (!players || players.length === 0) {
+        queueList.innerHTML = '<div class="panel" style="color:var(--grey); text-align:center;">Queue is empty</div>';
+        return;
+    }
+
+    queueList.innerHTML = players.map((p, i) => {
+        if (!p || !p.name) return ''; // Skip empty player slots
+
+        const rel = typeof getReliability === 'function' ? getReliability(p.name) : 100;
+        const joinedTime = p.joined || Date.now(); // Fallback to now if timestamp missing
+        const waitTime = Math.floor((Date.now() - joinedTime) / 60000);
+
+        return `
+            <div class="panel">
+                <div class="stat-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+                    <div style="display:flex; justify-content:space-between; width:100%;">
+                        <b>${p.name}</b>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--primary);">EST DUPR: ${typeof getEstDUPR === 'function' ? getEstDUPR(p.name) : 'N/A'}</div>
+                    <div style="font-size: 0.7rem; color: var(--grey); width: 100%;">
+                        Wait: ${waitTime < 0 ? 0 : waitTime}m | Rel: ${rel}%
+                        <div style="width: 100%; background: grey; height: 3px; border-radius: 2px; margin-top: 2px;">
+                            <div style="width: ${rel}%; background: var(--winner); height: 100%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+}
 
 	function getReliability(name) {
 			const s = getPStats(name);
@@ -877,6 +920,86 @@ function renderQueue() {
         const volumeFactor = Math.min(s.games / 20, 1);
         return (base * volumeFactor + (1 - volumeFactor) * 2.0).toFixed(2);
     }	
+
+	function refreshPage() {
+		window.location.reload();
+	}
+
+
+
+		db.ref('court_schedule').on('value', snapshot => {
+			const times = [
+				"10:00", "11:00", "12:00", "13:00", "14:00", "15:00", 
+				"16:00", "17:00", "18:00", "19:00", "20:00", "21:00"
+			];
+			const format12hr = (timeStr) => {
+				if (!timeStr) return "";
+				let [hours, minutes] = timeStr.split(':');
+				hours = parseInt(hours);
+				const ampm = hours >= 12 ? 'PM' : 'AM';
+				hours = hours % 12 || 12;
+				return `${hours}:${minutes} ${ampm}`;
+			};
+			const data = snapshot.val() || {};
+			const tbody = document.getElementById('visualScheduleBody');
+			tbody.innerHTML = '';
+
+			times.forEach(hour => {
+				const nextHour = (parseInt(hour) + 1).toString().padStart(2, '0') + ":00";
+				const timeRangeLabel = `${format12hr(hour + ":00")} - ${format12hr(nextHour)}`;
+				
+				let rowHtml = `<tr style="border-bottom: 1px solid #eee;">
+					<td style="padding: 10px; font-weight: bold; text-align: center; border-right: 1px solid #eee;">${timeRangeLabel}</td>`;
+
+				["Court 1", "Court 2", "Court 3", "Court 4"].forEach(courtName => {
+					// Find if any booking matches this time and court
+
+					const booking = Object.values(data).find(b => 
+					
+						b.court === courtName && b.time <= (hour + ":00") && b.endTime > (hour + ":00")
+					);
+
+					if (booking) {
+						let noteContent = "";
+
+						// Check if the note exists and isn't just whitespace
+						if (booking.note && booking.note.trim() == "OPEN PLAY") {
+							noteContent = booking.note.toUpperCase();
+							
+						} else {
+							// "Do something" else here if the note is empty
+							
+							noteContent = booking.book.toUpperCase();
+						}
+
+						rowHtml += `<td style="padding: 10px; text-align: center; border-right: 1px solid #eee;">
+							<div style="background: #F8D7DA; color: #721C24; padding: 4px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; cursor: pointer;">
+								${noteContent}
+							</div>
+						</td>`;
+					} 
+					
+					
+					
+					else {
+						rowHtml += `<td style="padding: 10px; text-align: center; border-right: 1px solid #eee;">
+							<div style="background: #D4EDDA; color: #155724; padding: 4px; border-radius: 12px; font-size: 0.7rem; font-weight: bold;">Available</div>
+						</td>`;
+					}
+				});
+
+				rowHtml += `</tr>`;
+				tbody.innerHTML += rowHtml;
+			});
+		});
+
+db.ref('TPC_live_stats').on('value', (snapshot) => {
+    const liveCourts = snapshot.val();
+    if (liveCourts) {
+        renderQueue(); // You will need to create this UI function
+    }
+});
+
 	</script>
 </body>
 </html>
