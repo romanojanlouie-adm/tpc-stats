@@ -210,7 +210,7 @@
 
 <header class="hero-banner">
     <div class="header-content">
-        <img src="https://lh3.googleusercontent.com/u/0/d/15UICAjTt-zrSmrd2taWCFEokpxiugArg" alt="TPC Logo" class="logo-img">
+        <img src="./android-chrome-512x512.png" alt="TPC Logo" class="logo-img">
         <div>
             <h1 style="margin:0; font-size: 1.8rem;">THE PICKLEBALL CENTER</h1>
             <span style="color: var(--primary); font-weight: 600; font-size: 0.9rem;">PICKLEBALL COMING YOUR WAY</span>
@@ -238,13 +238,7 @@
         <div class="panel">
             <h3>⏳ Waiting Queue</h3>
             <div id="queueList"></div>
-            <div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 15px;">
-                <button class="btn btn-accent" onclick="matchmake('balanced')">Standard Match</button>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    <button class="btn" style="background: #528B71; font-size: 0.7rem;" onclick="matchmake('winners')">Winners vs Winners</button>
-                    <button class="btn" style="background: #528B71; font-size: 0.7rem;" onclick="matchmake('losers')">Losers vs Losers</button>
-                </div>
-            </div>			
+            			
         </div>
         <div class="panel">
             <h3>👥 Team Challenges</h3>
@@ -668,6 +662,7 @@ async function addCheckIn() {
 
     // --- RENDER ---
     let saveTimeout;
+    
 function saveAndRender() {
     clearTimeout(saveTimeout);
     
@@ -675,6 +670,8 @@ function saveAndRender() {
     document.getElementById('queueTotal').innerText = players.length;
     document.getElementById('activePlayers').innerText = courts.filter(c => c.status === 'playing').length * 4;
     document.getElementById('playerTotal').innerText = (players.length + courts.filter(c => c.status === 'playing').length * 4);
+    localStorage.setItem('upb_courts', JSON.stringify(courts));
+    db.ref('LIVE_COURTS').set(courts);
     renderQueue(); 
     renderCourts(); 
     renderLeaderboard();
@@ -710,7 +707,8 @@ function saveAndRender() {
 			<div class="stat-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
 				<div style="display:flex; justify-content:space-between; width:100%;">
 					<b>${p.name}</b>
-					<button onclick="players.splice(${i}, 1); saveAndRender();" style="color:var(--danger); background:none; border:none; cursor:pointer;">✕</button>
+					<button onclick="attemptRemove(${i})" style="color:var(--danger); background:none; border:none; cursor:pointer;">✕</button>
+              
 				</div>
 				<div style="font-size: 0.75rem; color: var(--primary);">EST DUPR: ${getEstDUPR(p.name)}</div>
 				<div style="font-size: 0.7rem; color: var(--grey); width: 100%;">
@@ -756,7 +754,13 @@ function saveAndRender() {
                         <input type="number" class="score-input" value="${c.scoreB}" oninput="courts.find(x=>x.id===${c.id}).scoreB=this.value">
                     </div>
                     <button class="btn btn-primary" onclick="finishMatch(${c.id})">Finish Match</button>
-                ` : `<div style="height:380px; display:flex; align-items:center; justify-content:center; color:#334155; border:2px dashed #334155; border-radius:24px">VACANT</div>`}
+                ` : `<div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 15px; max-height: 120px;">
+                <button class="btn btn-accent" onclick="matchmake('balanced')">Standard Match</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button class="btn" style="background: #528B71; font-size: 0.7rem;" onclick="matchmake('winners')">Winners vs Winners</button>
+                    <button class="btn" style="background: #528B71; font-size: 0.7rem;" onclick="matchmake('losers')">Losers vs Losers</button>
+                </div>
+            </div>`}
             </div>
         `}).join('');
     }
@@ -1080,12 +1084,23 @@ function saveAndRender() {
 
             // Update local state
             players = Array.isArray(newData) ? newData : Object.values(newData); 
-            
+            localStorage.setItem('upb_queue', JSON.stringify(players));
             // IMPORTANT: Never use saveAndRender() here.
             // Only update the DOM.
             renderUIOnly(); 
+            console.log("Sync Complete: Queue updated from external source.");
         });
+
+   
+
+        
+
     }
+
+  
+
+
+
 
     function renderUIOnly() {
             document.getElementById('queueTotal').innerText = players.length;
@@ -1143,6 +1158,32 @@ function saveAndRender() {
        
         document.getElementById('queueTotal').innerText = players.length;
     }, 60000);
+
+function attemptRemove(i) {
+    const player = players[i];
+    
+    // 1. Define the logic for removal
+    const proceedWithRemoval = (player.status === 'Paid') || 
+                               confirm("This player hasn't paid. Do you want to remove them anyway?");
+
+    if (proceedWithRemoval) {
+        // 2. Remove from the local array
+        players.splice(i, 1);
+        
+        // 3. Update Local Storage and UI
+        saveAndRender();
+
+        // 4. CRITICAL: Update the Cloud Source of Truth
+        // This prevents the Firebase listener from "re-adding" the player on the next sync
+        if (typeof db !== 'undefined' && db) {
+            db.ref('PLAYERS_PATH').set(players)
+                .then(() => console.log("Player removed from cloud successfully."))
+                .catch(err => console.error("Cloud removal failed:", err));
+        }
+    }
+}
+
+
 
 </script>
 </body>
