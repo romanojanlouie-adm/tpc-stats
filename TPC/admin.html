@@ -20,7 +20,54 @@
         .btn-accent { background: #528B71; color: white; }
         .btn-danger { background: #F32013; color: white; }
         .instance-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #528B71; }
+        .timeline-container {
+            position: relative;
+            padding-left: 40px;
+            margin-top: 20px;
+        }
+
+        /* The vertical line */
+        .timeline-container::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--primary);
+            opacity: 0.3;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        /* The circle node */
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -32px;
+            top: 5px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--dark-bg);
+            border: 3px solid var(--primary);
+            z-index: 2;
+        }
+
+        .timeline-content {
+            background: var(--panel-bg);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+    
+    
     </style>
+
 </head>
 <body>
 
@@ -53,6 +100,42 @@
             </div>
             <div id="guideList" style="max-height: 150px; overflow-y: auto; font-size: 0.8rem; border-top: 1px solid #eee; padding-top: 10px;"></div>
         </div>
+
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 20px;">
+                <h2>📅 Court Schedule Manager</h2>
+                <div id="scheduleForm" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                    <input type="date" id="schedDate" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    <input type="time" id="schedTime" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    <input type="time" id="schedEndTime" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    <input type="text" id="schedNote" placeholder="Renter Name / Event" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    <select id="schedCourt" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                        <option value="Court 1">Court 1</option>
+                        <option value="Court 2">Court 2</option>
+                        <option value="Court 3">Court 3</option>
+                        <option value="Court 4">Court 4</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="addSchedule()">Update Calendar</button>
+                    <button onclick="clearAllSchedules()" style="flex: 1; padding: 10px; border-radius: 8px; border: none; background: #dc3545; color: white; font-weight: bold; cursor: pointer;">
+            Clear All
+        </button>
+                </div>
+            </div>
+
+            <table id="visualScheduleTable" style="width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.8rem; border-top: 1px solid #eee;">
+                <thead style="background-color: #1A4335; color: white;">
+                    <tr>
+                        <th style="padding: 10px; width: 25%;">TIME</th>
+                        <th style="padding: 10px;">COURT 1</th>
+                        <th style="padding: 10px;">COURT 2</th>
+                        <th style="padding: 10px;">COURT 3</th>
+                        <th style="padding: 10px;">COURT 4</th>
+                    </tr>
+                </thead>
+                <tbody id="visualScheduleBody" style="background-color: #fff; color: #333;">
+                    </tbody>
+            </table>
+        </div>      
 
 
     </div>
@@ -153,7 +236,7 @@
         loadMasterData(); // This handles the player table
         loadLiveInstances(); // This handles the tablets
         loadMetrics(); // handles metrics
-
+        renderVisualSchedule();
         // Nightly Cleanup (Optional background task)
         db.ref('TPC_live_stats').once('value', snapshot => {
             const data = snapshot.val();
@@ -170,6 +253,14 @@
         init();
     });
 
+const format12hr = (timeStr) => {
+    if (!timeStr) return "";
+    let [hours, minutes] = timeStr.split(':');
+    hours = parseInt(hours);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${ampm}`;
+};
     
 async function updatePlayer(oldName) {
     // Helper inside function to avoid ReferenceErrors
@@ -710,6 +801,95 @@ async function deletePlayer(name) {
     } catch (err) {
         console.error("Delete failed:", err);
         alert("Error deleting player.");
+    }
+}
+
+
+async function addSchedule() {
+    const date = document.getElementById('schedDate').value;
+    const time = document.getElementById('schedTime').value;
+    const endTime = document.getElementById('schedEndTime').value;
+    const note = document.getElementById('schedNote').value.trim().toUpperCase();
+    const court = document.getElementById('schedCourt').value;
+    const book = 'BOOKED';
+
+    if (!date || !time || !court) return alert("Date, Time, and Court are required!");
+
+    // Create a unique key based on date, time, and court to avoid duplicates
+    const scheduleId = `${date}_${time.replace(':', '')}_${court.replace(' ', '')}`;
+    
+    await db.ref(`court_schedule/${scheduleId}`).set({
+        date, time, endTime, note, court, book,
+        timestamp: Date.now()
+    });
+
+    alert("Schedule updated!");
+}
+
+
+
+
+function renderVisualSchedule() {
+    const times = [
+        "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", 
+        "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"
+    ];
+
+    db.ref('court_schedule').on('value', snapshot => {
+        const data = snapshot.val() || {};
+        const tbody = document.getElementById('visualScheduleBody');
+        tbody.innerHTML = '';
+
+        times.forEach(hour => {
+            const nextHour = (parseInt(hour) + 1).toString().padStart(2, '0') + ":00";
+            const timeRangeLabel = `${format12hr(hour + ":00")} - ${format12hr(nextHour)}`;
+            
+            let rowHtml = `<tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 10px; font-weight: bold; text-align: center; border-right: 1px solid #eee;">${timeRangeLabel}</td>`;
+
+            ["Court 1", "Court 2", "Court 3", "Court 4"].forEach(courtName => {
+                // Find if any booking matches this time and court
+                const booking = Object.values(data).find(b => 
+                    b.court === courtName && b.time <= (hour + ":00") && b.endTime > (hour + ":00")
+                );
+
+                if (booking) {
+                    rowHtml += `<td style="padding: 10px; text-align: center; border-right: 1px solid #eee;">
+                        <div onclick="deleteBooking('${booking.date}_${booking.time.replace(':', '')}_${booking.court.replace(' ', '')}')" 
+                             style="background: #F8D7DA; color: #721C24; padding: 4px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; cursor: pointer;">
+                             ${booking.note.toUpperCase()} ✕
+                        </div>
+                    </td>`;
+                } else {
+                    rowHtml += `<td style="padding: 10px; text-align: center; border-right: 1px solid #eee;">
+                        <div style="background: #D4EDDA; color: #155724; padding: 4px; border-radius: 12px; font-size: 0.7rem; font-weight: bold;">OPEN</div>
+                    </td>`;
+                }
+            });
+
+            rowHtml += `</tr>`;
+            tbody.innerHTML += rowHtml;
+        });
+    });
+}
+
+async function deleteBooking(id) {
+    if(confirm("Delete this booking?")) {
+        await db.ref(`court_schedule/${id}`).remove();
+    }
+}
+
+async function clearAllSchedules() {
+    const confirmation = confirm("⚠️ WARNING: This will permanently delete EVERY entry in the court schedule. Are you sure?");
+    
+    if (confirmation) {
+        try {
+            await db.ref('court_schedule').remove();
+            alert("Schedule cleared successfully.");
+        } catch (error) {
+            console.error("Error clearing schedule:", error);
+            alert("Failed to clear schedule.");
+        }
     }
 }
 
